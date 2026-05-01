@@ -13,7 +13,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(0, 0, 32);
+camera.position.set(0, 0, 28);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
@@ -35,7 +35,7 @@ controls.enableDamping = true;
 controls.enableZoom = false;
 
 // =====================
-// SHADERS
+// SHADERS — curva tipo tubo
 // =====================
 const vertexShader = `
   varying vec2 vUv;
@@ -45,14 +45,23 @@ const vertexShader = `
 
   void main() {
     vUv = uv;
-    vNormal = normalize(normalMatrix * normal);
+
     vec3 pos = position;
 
-    // Micro breathe en Z — muy sutil
+    // Curva tipo tubo — parábola en Z según posición X local
+    // centro de la card adelante, bordes se curvan hacia atrás
+    float t = (uv.x - 0.5) * 2.0; // -1 a 1
+    pos.z -= t * t * 1.8;          // curvatura — subí el 1.8 para más curva
+
+    // Micro breathe sutil
     pos.z += sin(pos.y * 3.0 + uTime * 0.9) * 0.012;
 
     vec4 worldPos4 = modelMatrix * vec4(pos, 1.0);
     vWorldPos = worldPos4.xyz;
+
+    // Recalcular normal para lighting correcto con la curva
+    vNormal = normalize(normalMatrix * normal);
+
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
 `;
@@ -109,6 +118,7 @@ const imagePlanes = [];
 const ORBIT_RADIUS = 8;
 const CARD_W = 5.2;
 const CARD_H = 3.2;
+const CARD_Y = -1.5; // altura — negativo = más abajo
 const TOTAL = imageElements.length;
 
 imageElements.forEach((img, index) => {
@@ -117,8 +127,9 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 1, 1); // flat — sin curva propia
-  
+  // Segmentos en X para que la curva sea suave
+  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 40, 1);
+
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -146,34 +157,29 @@ imageElements.forEach((img, index) => {
 });
 
 // =====================
-// ANIMATE — las cards siguen el círculo, rotan tangencialmente
+// ANIMATE
 // =====================
 function animateImages(time) {
   imagePlanes.forEach((mesh) => {
     const angle = time * 0.28 + mesh.userData.baseAngle;
 
-    // Posición en el círculo XZ, Y siempre 0
     const x = Math.cos(angle) * ORBIT_RADIUS;
     const z = Math.sin(angle) * ORBIT_RADIUS;
-    mesh.position.set(x, 0, z);
 
-    // La card mira hacia el centro del círculo (tangente al arco)
-    // rotation Y = ángulo + 90° para que la cara quede mirando hacia afuera
+    mesh.position.set(x, CARD_Y, z);
+
+    // Tangente al círculo — cara mirando hacia afuera del arco
     mesh.rotation.y = -angle + Math.PI * 0.5;
 
-    // Depth: z positivo = frente a cámara
-    const depth = (z / ORBIT_RADIUS) * 0.5 + 0.5; // 0 a 1
+    const depth = (z / ORBIT_RADIUS) * 0.5 + 0.5;
 
-    // Scale: frente más grande
     const scale = THREE.MathUtils.lerp(0.6, 1.1, depth);
     mesh.scale.setScalar(scale);
 
-    // Alpha: fondo casi invisible
     const alpha = THREE.MathUtils.lerp(0.08, 1.0, Math.pow(depth, 1.8));
     mesh.material.uniforms.uAlpha.value = alpha;
     mesh.material.uniforms.uTime.value = time;
 
-    // renderOrder: siempre debajo del GLB
     mesh.renderOrder = 1 + Math.floor(depth * 8);
   });
 }
