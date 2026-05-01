@@ -154,7 +154,7 @@ imageElements.forEach(img => {
 const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
-const ORBIT_RADIUS = 5.5;
+const ORBIT_RADIUS = 6.5;
 const CARD_H = 3.2;
 const TOTAL = imageElements.length;
 const GAP = 0.82;
