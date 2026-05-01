@@ -313,8 +313,8 @@ loader.load(
         if (child.isMesh) {
           child.renderOrder = 10;
           if (child.material) {
-            child.material.depthTest = true;
-            child.material.depthWrite = true;
+            //child.material.depthTest = true;
+            //child.material.depthWrite = true;
           }
         }
       });
