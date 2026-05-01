@@ -105,8 +105,7 @@ const fragmentShader = `
     float vignette = smoothstep(0.6, 0.1, length(uv - 0.5));
     tex.rgb *= 0.78 + vignette * 0.22;
 
-    gl_FragColor = vec4(tex.rgb, uAlpha * edgeY * edgeX);
-  }
+    gl_FragColor = vec4(tex.rgb, uAlpha * edgeY);  }
 `;
 
 // =====================
@@ -121,7 +120,7 @@ imageElements.forEach(img => {
 const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
-const ORBIT_RADIUS = 5.5;
+const ORBIT_RADIUS = 6.5;
 const CARD_H = 3.2;
 const TOTAL = imageElements.length;
 const ARC_PER_CARD = (Math.PI * 2) / TOTAL;
@@ -148,7 +147,7 @@ imageElements.forEach((img, index) => {
       uTexture: { value: texture },
       uTime: { value: 0 },
       uNoiseStrength: { value: 0.022 },
-      uAlpha: { value: 0.92 },
+      uAlpha: { value: 1.00 },
       uArcAngle: { value: ARC_PER_CARD },
       uRadius: { value: ORBIT_RADIUS },
       uAngleOffset: { value: angleOffset },
@@ -158,7 +157,7 @@ imageElements.forEach((img, index) => {
   });
 
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = -1.5;
+  mesh.position.y = -3.5;
   mesh.renderOrder = 5;
 
   cylinderGroup.add(mesh);
@@ -173,7 +172,7 @@ function animateImages(time) {
 
   imagePlanes.forEach((mesh) => {
     mesh.material.uniforms.uTime.value = time;
-    mesh.material.uniforms.uAlpha.value = 0.92;
+    mesh.material.uniforms.uAlpha.value = 1.00;
   });
 }
 
