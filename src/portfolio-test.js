@@ -35,33 +35,29 @@ controls.enableDamping = true;
 controls.enableZoom = false;
 
 // =====================
-// SHADERS — cada card ES un arco del cilindro
+// SHADERS
 // =====================
 const vertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorldPos;
   uniform float uTime;
-  uniform float uArcAngle;   // ángulo que ocupa esta card en el círculo (radianes)
-  uniform float uRadius;     // radio del cilindro
-  uniform float uAngleOffset;// ángulo base de esta card en el círculo
+  uniform float uArcAngle;
+  uniform float uRadius;
+  uniform float uAngleOffset;
 
   void main() {
     vUv = uv;
 
-    // uv.x va de 0 a 1 a lo largo de la card
-    // lo mapeamos al arco que le corresponde en el círculo
-    float t = uv.x - 0.5; // -0.5 a 0.5
-    float localAngle = t * uArcAngle; // ángulo local dentro del arco
+    float t = uv.x - 0.5;
+    float localAngle = t * uArcAngle;
     float worldAngle = uAngleOffset + localAngle;
 
-    // Posición en el cilindro
     vec3 pos;
     pos.x = cos(worldAngle) * uRadius;
     pos.z = sin(worldAngle) * uRadius;
-    pos.y = position.y; // altura del vértice original
+    pos.y = position.y;
 
-    // Normal apunta hacia afuera del cilindro
     vec3 nor = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
     vNormal = normalize(normalMatrix * nor);
 
@@ -89,33 +85,32 @@ const fragmentShader = `
   void main() {
     vec2 uv = vUv;
 
-    // Edge fade solo en Y (arriba/abajo) — en X se unen seamless
     float edgeY = smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);
-
-    // Fade lateral suave para que se unan las cards
     float edgeX = smoothstep(0.0, 0.04, uv.x) * smoothstep(1.0, 0.96, uv.x);
 
     vec4 tex = texture2D(uTexture, uv);
 
-    // Grain sutil
     float noise = random(uv * 480.0 + uTime * 0.35);
     tex.rgb += (noise - 0.5) * uNoiseStrength;
 
-    // Fresnel
-    vec3 viewDir = normalize(cameraPosition - vWorldPos);
-    float fresnel = pow(1.0 - clamp(dot(viewDir, vNormal), 0.0, 1.0), 2.5);
-    tex.rgb += fresnel * 0.04;
+    float lateralLight = clamp(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0, 1.0);
+    float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
 
-    // Vignette
-    float vignette = smoothstep(0.55, 0.18, length(uv - 0.5));
-    tex.rgb *= 0.82 + vignette * 0.18;
+    tex.rgb *= 0.6 + lateralLight * 0.5;
+    tex.rgb *= 1.0 - rimDark * 0.35;
 
-    gl_FragColor = vec4(tex.rgb, tex.a * uAlpha * edgeY * edgeX);
+    tex.rgb = pow(tex.rgb, vec3(0.95));
+    tex.rgb = mix(tex.rgb, tex.rgb * vec3(1.05, 1.0, 0.97), 0.4);
+
+    float vignette = smoothstep(0.6, 0.1, length(uv - 0.5));
+    tex.rgb *= 0.78 + vignette * 0.22;
+
+    gl_FragColor = vec4(tex.rgb, uAlpha * edgeY * edgeX);
   }
 `;
 
 // =====================
-// IMAGE PLANES — forman el cilindro
+// IMAGE PLANES
 // =====================
 const imageElements = [...document.querySelectorAll(".image-project")];
 imageElements.forEach(img => {
@@ -126,14 +121,11 @@ imageElements.forEach(img => {
 const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
-const ORBIT_RADIUS = 8;
+const ORBIT_RADIUS = 5.5;
 const CARD_H = 3.2;
 const TOTAL = imageElements.length;
-
-// Cada card ocupa su porción del círculo completo
 const ARC_PER_CARD = (Math.PI * 2) / TOTAL;
 
-// Pivot group que rota todo el cilindro
 const cylinderGroup = new THREE.Group();
 scene.add(cylinderGroup);
 
@@ -143,7 +135,6 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  // Segmentos X altos para que la curva sea suave
   const geometry = new THREE.PlaneGeometry(1, CARD_H, 60, 1);
 
   const angleOffset = (index / TOTAL) * Math.PI * 2;
@@ -157,7 +148,7 @@ imageElements.forEach((img, index) => {
       uTexture: { value: texture },
       uTime: { value: 0 },
       uNoiseStrength: { value: 0.022 },
-      uAlpha: { value: 0.92 },       // opacity uniforme para todas
+      uAlpha: { value: 0.92 },
       uArcAngle: { value: ARC_PER_CARD },
       uRadius: { value: ORBIT_RADIUS },
       uAngleOffset: { value: angleOffset },
@@ -175,15 +166,13 @@ imageElements.forEach((img, index) => {
 });
 
 // =====================
-// ANIMATE — rota el grupo entero
+// ANIMATE
 // =====================
 function animateImages(time) {
-  // Rotamos el grupo en Y — todas las cards se mueven juntas formando el cilindro
   cylinderGroup.rotation.y = time * 0.28;
 
   imagePlanes.forEach((mesh) => {
     mesh.material.uniforms.uTime.value = time;
-    // Alpha uniforme — todas igual
     mesh.material.uniforms.uAlpha.value = 0.92;
   });
 }
@@ -235,7 +224,7 @@ loader.load(
   "https://3dlive.netlify.app/portfolio.glb",
   (gltf) => {
     glbModel = gltf.scene;
-    glbModel.position.set(0, 0, -6);
+    glbModel.position.set(0, 0, -2);
     glbModel.traverse(child => {
       if (child.isMesh) {
         child.renderOrder = 10;
