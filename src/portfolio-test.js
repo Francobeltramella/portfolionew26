@@ -213,7 +213,6 @@ imageElements.forEach((img, index) => {
 // =====================
 function animateImages(time) {
     cylinderGroup.rotation.y = time * 0.28;
-  
     mouse3DSmooth.lerp(mouse3D, 0.08);
   
     imagePlanes.forEach((mesh, index) => {
@@ -221,18 +220,14 @@ function animateImages(time) {
       mesh.material.uniforms.uAlpha.value = 1.0;
       mesh.material.uniforms.uHoverStrength.value = hoverStrength;
   
-      // Posición world Z de cada card según el ángulo actual del grupo
       const baseAngle = (index / TOTAL) * Math.PI * 2;
       const currentAngle = cylinderGroup.rotation.y + baseAngle;
       const worldZ = Math.sin(currentAngle) * ORBIT_RADIUS;
   
-      // Si está adelante del modelo (z positivo = cerca de cámara) → renderOrder alto
-      // Si está atrás → renderOrder bajo
-      if (worldZ > 0) {
-        mesh.renderOrder = 15; // adelante del GLB (que tiene 10)
-      } else {
-        mesh.renderOrder = 0;  // atrás del GLB
-      }
+      // Rango dinámico: de 1 (fondo) a 20 (adelante)
+      // El GLB está en renderOrder 10
+      const normalized = (worldZ / ORBIT_RADIUS) * 0.5 + 0.5; // 0 a 1
+      mesh.renderOrder = Math.round(normalized * 19) + 1; // 1 a 20
     });
   }
 
