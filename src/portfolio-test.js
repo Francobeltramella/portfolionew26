@@ -212,18 +212,29 @@ imageElements.forEach((img, index) => {
 // ANIMATE
 // =====================
 function animateImages(time) {
-  cylinderGroup.rotation.y = time * 0.28;
-
-  // Smooth del mouse 3D
-  mouse3DSmooth.lerp(mouse3D, 0.08);
-
-  imagePlanes.forEach((mesh) => {
-    mesh.material.uniforms.uTime.value = time;
-    mesh.material.uniforms.uAlpha.value = 1.0;
-    mesh.material.uniforms.uHoverStrength.value = hoverStrength;
-    // uMouse3D es una referencia — se actualiza solo
-  });
-}
+    cylinderGroup.rotation.y = time * 0.28;
+  
+    mouse3DSmooth.lerp(mouse3D, 0.08);
+  
+    imagePlanes.forEach((mesh, index) => {
+      mesh.material.uniforms.uTime.value = time;
+      mesh.material.uniforms.uAlpha.value = 1.0;
+      mesh.material.uniforms.uHoverStrength.value = hoverStrength;
+  
+      // Posición world Z de cada card según el ángulo actual del grupo
+      const baseAngle = (index / TOTAL) * Math.PI * 2;
+      const currentAngle = cylinderGroup.rotation.y + baseAngle;
+      const worldZ = Math.sin(currentAngle) * ORBIT_RADIUS;
+  
+      // Si está adelante del modelo (z positivo = cerca de cámara) → renderOrder alto
+      // Si está atrás → renderOrder bajo
+      if (worldZ > 0) {
+        mesh.renderOrder = 15; // adelante del GLB (que tiene 10)
+      } else {
+        mesh.renderOrder = 0;  // atrás del GLB
+      }
+    });
+  }
 
 // =====================
 // MOUSE
@@ -304,14 +315,14 @@ loader.load(
     glbModel = gltf.scene;
     glbModel.position.set(0, 0, -2);
     glbModel.traverse(child => {
-      if (child.isMesh) {
-        child.renderOrder = 10;
-        if (child.material) {
-          child.material.depthTest = true;
-          child.material.depthWrite = true;
+        if (child.isMesh) {
+          child.renderOrder = 10;
+          if (child.material) {
+            child.material.depthTest = true;
+            child.material.depthWrite = true;
+          }
         }
-      }
-    });
+      });
     scene.add(glbModel);
   }
 );
