@@ -5,9 +5,6 @@ import gsap from 'gsap';
 
 const container = document.querySelector("._3d-element");
 
-// =====================
-// SCENE / CAMERA / RENDERER
-// =====================
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
@@ -16,7 +13,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(0, 0, 20);
+camera.position.set(0, 0, 32);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
@@ -25,9 +22,6 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.sortObjects = true;
 container.appendChild(renderer.domElement);
 
-// =====================
-// LIGHTS
-// =====================
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(2, 3, 4);
 scene.add(dirLight);
@@ -36,9 +30,6 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const cursorLight = new THREE.PointLight(0xffffff, 8, 500);
 scene.add(cursorLight);
 
-// =====================
-// CONTROLS
-// =====================
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.enableZoom = false;
@@ -51,23 +42,17 @@ const vertexShader = `
   varying vec3 vNormal;
   varying vec3 vWorldPos;
   uniform float uTime;
-  uniform float uCurve;
 
   void main() {
     vUv = uv;
     vNormal = normalize(normalMatrix * normal);
-
     vec3 pos = position;
 
-    // Curva tipo coverflow — dobla en Z según X local
-    pos.z += sin(pos.x * 0.75) * uCurve;
-
-    // Micro breathe muy sutil solo en Z
-    pos.z += sin(pos.y * 3.0 + uTime * 0.9) * 0.015;
+    // Micro breathe en Z — muy sutil
+    pos.z += sin(pos.y * 3.0 + uTime * 0.9) * 0.012;
 
     vec4 worldPos4 = modelMatrix * vec4(pos, 1.0);
     vWorldPos = worldPos4.xyz;
-
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
 `;
@@ -89,23 +74,19 @@ const fragmentShader = `
   void main() {
     vec2 uv = vUv;
 
-    // Edge fade — bordes se disuelven suave
-    float edgeX = smoothstep(0.0, 0.07, uv.x) * smoothstep(1.0, 0.93, uv.x);
+    float edgeX = smoothstep(0.0, 0.06, uv.x) * smoothstep(1.0, 0.94, uv.x);
     float edgeY = smoothstep(0.0, 0.05, uv.y) * smoothstep(1.0, 0.95, uv.y);
     float edgeFade = edgeX * edgeY;
 
     vec4 tex = texture2D(uTexture, uv);
 
-    // Grain cinematográfico
     float noise = random(uv * 480.0 + uTime * 0.35);
     tex.rgb += (noise - 0.5) * uNoiseStrength;
 
-    // Fresnel sutil
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
     float fresnel = pow(1.0 - clamp(dot(viewDir, vNormal), 0.0, 1.0), 2.5);
-    tex.rgb += fresnel * 0.045;
+    tex.rgb += fresnel * 0.04;
 
-    // Vignette
     float vignette = smoothstep(0.55, 0.18, length(uv - 0.5));
     tex.rgb *= 0.82 + vignette * 0.18;
 
@@ -125,12 +106,10 @@ imageElements.forEach(img => {
 const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
-// Parámetros del arco orbital
-const ORBIT_RADIUS = 9;   // radio del círculo — más chico = más cerca al modelo
-const CARD_W = 5.0;
-const CARD_H = 3.1;
+const ORBIT_RADIUS = 8;
+const CARD_W = 5.2;
+const CARD_H = 3.2;
 const TOTAL = imageElements.length;
-const Y_FIXED = 0;         // todas en la misma altura — sin movimiento vertical
 
 imageElements.forEach((img, index) => {
   const texture = textureLoader.load(img.src);
@@ -138,8 +117,8 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 64, 40);
-
+  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 1, 1); // flat — sin curva propia
+  
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -148,9 +127,8 @@ imageElements.forEach((img, index) => {
     uniforms: {
       uTexture: { value: texture },
       uTime: { value: 0 },
-      uNoiseStrength: { value: 0.025 },
+      uNoiseStrength: { value: 0.022 },
       uAlpha: { value: 1.0 },
-      uCurve: { value: 0.55 },
     },
     vertexShader,
     fragmentShader
@@ -168,45 +146,34 @@ imageElements.forEach((img, index) => {
 });
 
 // =====================
-// ANIMATE IMAGES
+// ANIMATE — las cards siguen el círculo, rotan tangencialmente
 // =====================
-// Vector reutilizable para lookAt
-const _target = new THREE.Vector3();
-
 function animateImages(time) {
   imagePlanes.forEach((mesh) => {
     const angle = time * 0.28 + mesh.userData.baseAngle;
 
-    // Órbita en XZ — Y siempre fijo
+    // Posición en el círculo XZ, Y siempre 0
     const x = Math.cos(angle) * ORBIT_RADIUS;
     const z = Math.sin(angle) * ORBIT_RADIUS;
-    mesh.position.set(x, Y_FIXED, z);
+    mesh.position.set(x, 0, z);
 
-    // Billboard horizontal puro:
-    // La card mira a la cámara pero SOLO gira en Y (no tilt vertical)
-    _target.set(camera.position.x, mesh.position.y, camera.position.z);
-    mesh.lookAt(_target);
+    // La card mira hacia el centro del círculo (tangente al arco)
+    // rotation Y = ángulo + 90° para que la cara quede mirando hacia afuera
+    mesh.rotation.y = -angle + Math.PI * 0.5;
 
-    // Rotación extra según posición en el arco
-    // Las que están de costado se inclinan hacia el centro — efecto coverflow
-    const angleNorm = Math.atan2(z, x); // ángulo real de la card
-    const tiltY = -Math.sin(angleNorm) * 0.35; // inclinación coverflow
-    mesh.rotateY(tiltY);
-
-    // Depth: frente = 1, fondo = 0
-    // z positivo = frente a la cámara (cámara está en z=20)
+    // Depth: z positivo = frente a cámara
     const depth = (z / ORBIT_RADIUS) * 0.5 + 0.5; // 0 a 1
 
-    // Scale: frente más grande, fondo más chico
-    const scale = THREE.MathUtils.lerp(0.65, 1.08, depth);
+    // Scale: frente más grande
+    const scale = THREE.MathUtils.lerp(0.6, 1.1, depth);
     mesh.scale.setScalar(scale);
 
     // Alpha: fondo casi invisible
-    const alpha = THREE.MathUtils.lerp(0.1, 1.0, Math.pow(depth, 1.5));
+    const alpha = THREE.MathUtils.lerp(0.08, 1.0, Math.pow(depth, 1.8));
     mesh.material.uniforms.uAlpha.value = alpha;
     mesh.material.uniforms.uTime.value = time;
 
-    // renderOrder: siempre debajo del GLB (max 9, GLB = 10)
+    // renderOrder: siempre debajo del GLB
     mesh.renderOrder = 1 + Math.floor(depth * 8);
   });
 }
@@ -226,13 +193,11 @@ container.addEventListener('mousemove', (event) => {
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-
   const point = new THREE.Vector3();
   raycaster.ray.intersectPlane(planeMouse, point);
   cursorLight.position.copy(point);
 
   if (!glbModel) return;
-
   const intersects = raycaster.intersectObject(glbModel, true);
 
   if (intersects.length > 0 && !intersecting) {
@@ -260,6 +225,7 @@ loader.load(
   "https://3dlive.netlify.app/portfolio.glb",
   (gltf) => {
     glbModel = gltf.scene;
+    glbModel.position.set(0, 0, -6);
     glbModel.traverse(child => {
       if (child.isMesh) {
         child.renderOrder = 10;
