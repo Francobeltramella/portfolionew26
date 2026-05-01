@@ -35,32 +35,38 @@ controls.enableDamping = true;
 controls.enableZoom = false;
 
 // =====================
-// SHADERS — curva tipo tubo
+// SHADERS — cada card ES un arco del cilindro
 // =====================
 const vertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorldPos;
   uniform float uTime;
+  uniform float uArcAngle;   // ángulo que ocupa esta card en el círculo (radianes)
+  uniform float uRadius;     // radio del cilindro
+  uniform float uAngleOffset;// ángulo base de esta card en el círculo
 
   void main() {
     vUv = uv;
 
-    vec3 pos = position;
+    // uv.x va de 0 a 1 a lo largo de la card
+    // lo mapeamos al arco que le corresponde en el círculo
+    float t = uv.x - 0.5; // -0.5 a 0.5
+    float localAngle = t * uArcAngle; // ángulo local dentro del arco
+    float worldAngle = uAngleOffset + localAngle;
 
-    // Curva tipo tubo — parábola en Z según posición X local
-    // centro de la card adelante, bordes se curvan hacia atrás
-    float t = (uv.x - 0.5) * 2.0; // -1 a 1
-    pos.z -= t * t * 1.8;          // curvatura — subí el 1.8 para más curva
+    // Posición en el cilindro
+    vec3 pos;
+    pos.x = cos(worldAngle) * uRadius;
+    pos.z = sin(worldAngle) * uRadius;
+    pos.y = position.y; // altura del vértice original
 
-    // Micro breathe sutil
-    pos.z += sin(pos.y * 3.0 + uTime * 0.9) * 0.012;
+    // Normal apunta hacia afuera del cilindro
+    vec3 nor = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
+    vNormal = normalize(normalMatrix * nor);
 
     vec4 worldPos4 = modelMatrix * vec4(pos, 1.0);
     vWorldPos = worldPos4.xyz;
-
-    // Recalcular normal para lighting correcto con la curva
-    vNormal = normalize(normalMatrix * normal);
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
@@ -83,28 +89,33 @@ const fragmentShader = `
   void main() {
     vec2 uv = vUv;
 
-    float edgeX = smoothstep(0.0, 0.06, uv.x) * smoothstep(1.0, 0.94, uv.x);
-    float edgeY = smoothstep(0.0, 0.05, uv.y) * smoothstep(1.0, 0.95, uv.y);
-    float edgeFade = edgeX * edgeY;
+    // Edge fade solo en Y (arriba/abajo) — en X se unen seamless
+    float edgeY = smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);
+
+    // Fade lateral suave para que se unan las cards
+    float edgeX = smoothstep(0.0, 0.04, uv.x) * smoothstep(1.0, 0.96, uv.x);
 
     vec4 tex = texture2D(uTexture, uv);
 
+    // Grain sutil
     float noise = random(uv * 480.0 + uTime * 0.35);
     tex.rgb += (noise - 0.5) * uNoiseStrength;
 
+    // Fresnel
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
     float fresnel = pow(1.0 - clamp(dot(viewDir, vNormal), 0.0, 1.0), 2.5);
     tex.rgb += fresnel * 0.04;
 
+    // Vignette
     float vignette = smoothstep(0.55, 0.18, length(uv - 0.5));
     tex.rgb *= 0.82 + vignette * 0.18;
 
-    gl_FragColor = vec4(tex.rgb, tex.a * uAlpha * edgeFade);
+    gl_FragColor = vec4(tex.rgb, tex.a * uAlpha * edgeY * edgeX);
   }
 `;
 
 // =====================
-// IMAGE PLANES
+// IMAGE PLANES — forman el cilindro
 // =====================
 const imageElements = [...document.querySelectorAll(".image-project")];
 imageElements.forEach(img => {
@@ -116,10 +127,15 @@ const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
 const ORBIT_RADIUS = 8;
-const CARD_W = 5.2;
 const CARD_H = 3.2;
-const CARD_Y = -1.5; // altura — negativo = más abajo
 const TOTAL = imageElements.length;
+
+// Cada card ocupa su porción del círculo completo
+const ARC_PER_CARD = (Math.PI * 2) / TOTAL;
+
+// Pivot group que rota todo el cilindro
+const cylinderGroup = new THREE.Group();
+scene.add(cylinderGroup);
 
 imageElements.forEach((img, index) => {
   const texture = textureLoader.load(img.src);
@@ -127,8 +143,10 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  // Segmentos en X para que la curva sea suave
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 40, 1);
+  // Segmentos X altos para que la curva sea suave
+  const geometry = new THREE.PlaneGeometry(1, CARD_H, 60, 1);
+
+  const angleOffset = (index / TOTAL) * Math.PI * 2;
 
   const material = new THREE.ShaderMaterial({
     transparent: true,
@@ -139,48 +157,34 @@ imageElements.forEach((img, index) => {
       uTexture: { value: texture },
       uTime: { value: 0 },
       uNoiseStrength: { value: 0.022 },
-      uAlpha: { value: 1.0 },
+      uAlpha: { value: 0.92 },       // opacity uniforme para todas
+      uArcAngle: { value: ARC_PER_CARD },
+      uRadius: { value: ORBIT_RADIUS },
+      uAngleOffset: { value: angleOffset },
     },
     vertexShader,
     fragmentShader
   });
 
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.userData = {
-    baseAngle: (index / TOTAL) * Math.PI * 2,
-    index
-  };
-  mesh.renderOrder = 1;
+  mesh.position.y = -1.5;
+  mesh.renderOrder = 5;
 
-  scene.add(mesh);
+  cylinderGroup.add(mesh);
   imagePlanes.push(mesh);
 });
 
 // =====================
-// ANIMATE
+// ANIMATE — rota el grupo entero
 // =====================
 function animateImages(time) {
+  // Rotamos el grupo en Y — todas las cards se mueven juntas formando el cilindro
+  cylinderGroup.rotation.y = time * 0.28;
+
   imagePlanes.forEach((mesh) => {
-    const angle = time * 0.28 + mesh.userData.baseAngle;
-
-    const x = Math.cos(angle) * ORBIT_RADIUS;
-    const z = Math.sin(angle) * ORBIT_RADIUS;
-
-    mesh.position.set(x, CARD_Y, z);
-
-    // Tangente al círculo — cara mirando hacia afuera del arco
-    mesh.rotation.y = -angle + Math.PI * 0.5;
-
-    const depth = (z / ORBIT_RADIUS) * 0.5 + 0.5;
-
-    const scale = THREE.MathUtils.lerp(0.6, 1.1, depth);
-    mesh.scale.setScalar(scale);
-
-    const alpha = THREE.MathUtils.lerp(0.08, 1.0, Math.pow(depth, 1.8));
-    mesh.material.uniforms.uAlpha.value = alpha;
     mesh.material.uniforms.uTime.value = time;
-
-    mesh.renderOrder = 1 + Math.floor(depth * 8);
+    // Alpha uniforme — todas igual
+    mesh.material.uniforms.uAlpha.value = 0.92;
   });
 }
 
