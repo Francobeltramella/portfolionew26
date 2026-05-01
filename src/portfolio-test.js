@@ -45,6 +45,8 @@ const vertexShader = `
   uniform float uArcAngle;
   uniform float uRadius;
   uniform float uAngleOffset;
+  uniform vec3 uMouse3D;
+  uniform float uHoverStrength;
 
   void main() {
     vUv = uv;
@@ -58,8 +60,20 @@ const vertexShader = `
     pos.z = sin(worldAngle) * uRadius;
     pos.y = position.y;
 
+    // Deformación por cursor — distancia del vértice al mouse en world space
+    float dist = distance(pos, uMouse3D);
+    float influence = 1.0 - smoothstep(0.0, 3.5, dist);
+
+    // Empuja los vértices hacia afuera del cilindro (en dirección normal)
     vec3 nor = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
-    vNormal = normalize(normalMatrix * nor);
+    pos += nor * influence * uHoverStrength * 0.6;
+
+    // Wave ondulante alrededor del punto de contacto
+    float wave = sin(dist * 2.5 - uTime * 4.0) * influence * uHoverStrength * 0.15;
+    pos += nor * wave;
+
+    vec3 norFinal = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
+    vNormal = normalize(normalMatrix * norFinal);
 
     vec4 worldPos4 = modelMatrix * vec4(pos, 1.0);
     vWorldPos = worldPos4.xyz;
@@ -73,6 +87,8 @@ const fragmentShader = `
   uniform float uTime;
   uniform float uNoiseStrength;
   uniform float uAlpha;
+  uniform vec3 uMouse3D;
+  uniform float uHoverStrength;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -86,26 +102,44 @@ const fragmentShader = `
     vec2 uv = vUv;
 
     float edgeY = smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);
-    float edgeX = smoothstep(0.0, 0.04, uv.x) * smoothstep(1.0, 0.96, uv.x);
 
     vec4 tex = texture2D(uTexture, uv);
 
+    // Distorsión UV cerca del cursor — efecto lente
+    float dist = distance(vWorldPos, uMouse3D);
+    float influence = 1.0 - smoothstep(0.0, 3.5, dist);
+
+    // Ripple en UV
+    vec2 uvDistorted = uv;
+    uvDistorted += (uv - 0.5) * influence * uHoverStrength * 0.08;
+    uvDistorted.x += sin(uv.y * 8.0 + uTime * 3.0) * influence * uHoverStrength * 0.015;
+    uvDistorted.y += sin(uv.x * 8.0 + uTime * 3.0) * influence * uHoverStrength * 0.015;
+
+    tex = texture2D(uTexture, uvDistorted);
+
+    // Brightening cerca del cursor
+    tex.rgb += influence * uHoverStrength * 0.18;
+
+    // Grain
     float noise = random(uv * 480.0 + uTime * 0.35);
     tex.rgb += (noise - 0.5) * uNoiseStrength;
 
+    // Lighting lateral
     float lateralLight = clamp(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0, 1.0);
     float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
-
     tex.rgb *= 0.6 + lateralLight * 0.5;
     tex.rgb *= 1.0 - rimDark * 0.35;
 
+    // Color grading
     tex.rgb = pow(tex.rgb, vec3(0.95));
     tex.rgb = mix(tex.rgb, tex.rgb * vec3(1.05, 1.0, 0.97), 0.4);
 
+    // Vignette
     float vignette = smoothstep(0.6, 0.1, length(uv - 0.5));
     tex.rgb *= 0.78 + vignette * 0.22;
 
-    gl_FragColor = vec4(tex.rgb, uAlpha * edgeY);  }
+    gl_FragColor = vec4(tex.rgb, uAlpha * edgeY);
+  }
 `;
 
 // =====================
@@ -120,13 +154,21 @@ imageElements.forEach(img => {
 const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
-const ORBIT_RADIUS = 6.5;
+const ORBIT_RADIUS = 5.5;
 const CARD_H = 3.2;
 const TOTAL = imageElements.length;
-const ARC_PER_CARD = (Math.PI * 2) / TOTAL;
+const GAP = 0.82;
+const ARC_PER_CARD = ((Math.PI * 2) / TOTAL) * GAP;
 
 const cylinderGroup = new THREE.Group();
 scene.add(cylinderGroup);
+
+// Mouse 3D world position — empieza lejos para que no afecte
+const mouse3D = new THREE.Vector3(9999, 9999, 9999);
+// Smooth mouse — interpolado para que la deformación sea suave
+const mouse3DSmooth = new THREE.Vector3(9999, 9999, 9999);
+// Hover strength — animado con gsap
+let hoverStrength = 0;
 
 imageElements.forEach((img, index) => {
   const texture = textureLoader.load(img.src);
@@ -134,31 +176,33 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const geometry = new THREE.PlaneGeometry(1, CARD_H, 60, 1);
+  const geometry = new THREE.PlaneGeometry(1, CARD_H, 60, 20);
 
   const angleOffset = (index / TOTAL) * Math.PI * 2;
 
   const material = new THREE.ShaderMaterial({
     transparent: true,
-    depthWrite: false,
+    depthWrite: true,
     depthTest: true,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     uniforms: {
       uTexture: { value: texture },
       uTime: { value: 0 },
       uNoiseStrength: { value: 0.022 },
-      uAlpha: { value: 1.00 },
+      uAlpha: { value: 1.0 },
       uArcAngle: { value: ARC_PER_CARD },
       uRadius: { value: ORBIT_RADIUS },
       uAngleOffset: { value: angleOffset },
+      uMouse3D: { value: mouse3DSmooth },
+      uHoverStrength: { value: 0.0 },
     },
     vertexShader,
     fragmentShader
   });
 
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = -3.5;
-  mesh.renderOrder = 5;
+  mesh.position.y = -3.0;
+  mesh.renderOrder = 0;
 
   cylinderGroup.add(mesh);
   imagePlanes.push(mesh);
@@ -170,9 +214,14 @@ imageElements.forEach((img, index) => {
 function animateImages(time) {
   cylinderGroup.rotation.y = time * 0.28;
 
+  // Smooth del mouse 3D
+  mouse3DSmooth.lerp(mouse3D, 0.08);
+
   imagePlanes.forEach((mesh) => {
     mesh.material.uniforms.uTime.value = time;
-    mesh.material.uniforms.uAlpha.value = 1.00;
+    mesh.material.uniforms.uAlpha.value = 1.0;
+    mesh.material.uniforms.uHoverStrength.value = hoverStrength;
+    // uMouse3D es una referencia — se actualiza solo
   });
 }
 
@@ -185,15 +234,35 @@ const planeMouse = new THREE.Plane(new THREE.Vector3(0, 0, 1), -8);
 let intersecting = false;
 let glbModel = null;
 
+// Plano en el radio del cilindro para capturar mouse 3D
+const cylinderPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -ORBIT_RADIUS);
+
 container.addEventListener('mousemove', (event) => {
   const rect = container.getBoundingClientRect();
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
+
+  // Cursor light
   const point = new THREE.Vector3();
   raycaster.ray.intersectPlane(planeMouse, point);
   cursorLight.position.copy(point);
+
+  // Mouse 3D en el plano del cilindro
+  const cylinderPoint = new THREE.Vector3();
+  raycaster.ray.intersectPlane(cylinderPlane, cylinderPoint);
+  if (cylinderPoint) {
+    mouse3D.copy(cylinderPoint);
+    mouse3D.y -= 3.0; // offset igual al mesh.position.y
+  }
+
+  // Hover strength — sube al entrar, baja al salir
+  gsap.to({ v: hoverStrength }, {
+    v: 1.0,
+    duration: 0.4,
+    onUpdate: function() { hoverStrength = this.targets()[0].v; }
+  });
 
   if (!glbModel) return;
   const intersects = raycaster.intersectObject(glbModel, true);
@@ -213,6 +282,16 @@ container.addEventListener('mousemove', (event) => {
     gsap.to(".hover", { opacity: 0, duration: 0.4 });
     gsap.to(".hover-black", { color: "#000", duration: 0.4 });
   }
+});
+
+container.addEventListener('mouseleave', () => {
+  // Mouse sale — manda el punto lejos y baja el strength
+  mouse3D.set(9999, 9999, 9999);
+  gsap.to({ v: hoverStrength }, {
+    v: 0.0,
+    duration: 0.6,
+    onUpdate: function() { hoverStrength = this.targets()[0].v; }
+  });
 });
 
 // =====================
