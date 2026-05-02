@@ -182,9 +182,9 @@ imageElements.forEach((img, index) => {
 
   const material = new THREE.ShaderMaterial({
     transparent: true,
-    depthWrite: true,
+    depthWrite: false,
     depthTest: true,
-    side: THREE.FrontSide,
+    side: THREE.DoubleSide,
     uniforms: {
       uTexture: { value: texture },
       uTime: { value: 0 },
