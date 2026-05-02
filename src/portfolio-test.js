@@ -51,8 +51,8 @@ const vertexShader = `
   void main() {
     vUv = uv;
 
-    float t = uv.x - 0.5;
-    float localAngle = t * uArcAngle;
+    float t = position.x / 5.4;
+        float localAngle = t * uArcAngle;
     float worldAngle = uAngleOffset + localAngle;
 
     vec3 pos;
