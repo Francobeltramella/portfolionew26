@@ -155,7 +155,8 @@ const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
 const ORBIT_RADIUS = 6.5;
-const CARD_H = 3.2;
+const CARD_W = 5.4;
+const CARD_H = 3.05;
 const TOTAL = imageElements.length;
 const GAP = 0.82;
 const ARC_PER_CARD = ((Math.PI * 2) / TOTAL) * GAP;
@@ -176,13 +177,12 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const geometry = new THREE.PlaneGeometry(1, CARD_H, 60, 20);
-
+  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 80, 20);
   const angleOffset = (index / TOTAL) * Math.PI * 2;
 
   const material = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     depthTest: true,
     side: THREE.DoubleSide,
     uniforms: {
