@@ -158,7 +158,7 @@ const ORBIT_RADIUS = 6.5;
 const CARD_W = 5.4;
 const CARD_H = 3.05;
 const TOTAL = imageElements.length;
-const GAP = 1.22;
+const GAP = 1.00;
 const ARC_PER_CARD = ((Math.PI * 2) / TOTAL) * GAP;
 
 const cylinderGroup = new THREE.Group();
