@@ -50,7 +50,6 @@ const vertexShader = `
 
   void main() {
     vUv = uv;
-
     float t = position.x / 5.4;
     float localAngle = t * uArcAngle;
     float worldAngle = uAngleOffset + localAngle;
@@ -97,9 +96,7 @@ const fragmentShader = `
 
   void main() {
     vec2 uv = vUv;
-
     float edgeY = smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);
-
     vec4 tex = texture2D(uTexture, uv);
 
     float dist = distance(vWorldPos, uMouse3D);
@@ -111,7 +108,6 @@ const fragmentShader = `
     uvDistorted.y += sin(uv.x * 8.0 + uTime * 3.0) * influence * uHoverStrength * 0.015;
 
     tex = texture2D(uTexture, uvDistorted);
-
     tex.rgb += influence * uHoverStrength * 0.18;
 
     float noise = random(uv * 480.0 + uTime * 0.35);
@@ -281,35 +277,42 @@ container.addEventListener('mouseleave', () => {
 });
 
 // =====================
-// LOAD MODEL
+// LOAD MODEL — warmup real contra RenderTarget offscreen
 // =====================
 const loader = new GLTFLoader();
+
+// RenderTarget tiny usado solo para forzar el compile de shaders
+// sin que el usuario vea nada. Se descarta después.
+const warmupTarget = new THREE.WebGLRenderTarget(64, 64);
 
 loader.load(
   "https://3dlive.netlify.app/portfolio.glb",
   (gltf) => {
-    // El callback de GLTFLoader llega en el main thread justo
-    // entre frames. Diferimos 2 rAF para que no pise una animación
-    // GSAP activa — el parse ya terminó, solo queda el scene.add
-    // que dispara el shader compile + upload a GPU.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        glbModel = gltf.scene;
-        glbModel.position.set(0, 0, -2);
+    const model = gltf.scene;
+    model.position.set(0, 0, -2);
 
-        glbModel.traverse(child => {
-          if (child.isMesh) {
-            child.renderOrder = 10;
-          }
-        });
-
-        scene.add(glbModel);
-
-        // Compila shaders en este frame "vacío" antes de que
-        // el usuario interactúe — evita el hitch en el primer hover.
-        renderer.compile(scene, camera);
-      });
+    model.traverse(child => {
+      if (child.isMesh) {
+        child.renderOrder = 10;
+      }
     });
+
+    // 1. Agregamos a la escena sin que el usuario lo vea todavía
+    scene.add(model);
+
+    // 2. Render offscreen — esto fuerza el compile completo de shaders
+    //    y el upload de geometría/texturas a la GPU en este frame,
+    //    sin bloquear ninguna animación visible porque el resultado
+    //    va al RenderTarget y no a la pantalla.
+    renderer.setRenderTarget(warmupTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null); // volvemos al canvas normal
+
+    // 3. Liberamos el RenderTarget — ya no lo necesitamos
+    warmupTarget.dispose();
+
+    // 4. Ahora sí lo exponemos para interacción
+    glbModel = model;
   }
 );
 
@@ -339,30 +342,53 @@ function animate() {
 animate();
 
 // =====================
-// LOADING
+// LOADING — timeline fluido estilo Awwwards
+// Misma estructura que tenías (barras + texto) pero con
+// easings expo, overlaps agresivos y duración ~2.5s total.
 // =====================
-gsap.to(".bg-color-courting", {
-  x: "100%",
-  duration: 4.5,
-  delay: 0.4,
-  stagger: 0.7,
-  onComplete: function () {
-    gsap.to(".courting-wrapper", {
-      y: "100%",
-      stagger: {
-        amount: 0.6,
-        from: "end",
-        onComplete: function () {
-          document.querySelector(".loading-wrapper").style.pointerEvents = "none";
-        },
-      },
-    });
-  },
-});
+const loadingTl = gsap.timeline({ delay: 0.1 });
 
-gsap.to(".heading-2", {
-  x: "100%",
-  duration: 4,
-  delay: 0.3,
-  stagger: 0.7,
-});
+loadingTl
+  // Barras de imagen salen al costado — stagger solapado:
+  // cada barra empieza cuando la anterior lleva 55% recorrido.
+  // expo.inOut da el arranque lento → aceleración → frenado
+  // elegante característico de sitios Awwwards.
+  .to(".bg-color-courting", {
+    xPercent: 100,
+    duration: 0.9,
+    stagger: {
+      each: 0.12,   // 0.12s entre cada barra — muy solapado
+      ease: "none", // el stagger en sí es lineal, el easing va dentro
+    },
+    ease: "expo.inOut",
+  })
+  // Texto sale al mismo tiempo que las barras empiezan,
+  // con su propio easing más suave.
+  .to(
+    ".heading-2",
+    {
+      xPercent: 100,
+      duration: 0.85,
+      ease: "expo.inOut",
+    },
+    "<0.05" // arranca 50ms después de las barras — casi simultáneo
+  )
+  // Cortina sube — empieza antes de que terminen las barras
+  // para que haya overlap y no haya pausa muerta entre fases.
+  .to(
+    ".courting-wrapper",
+    {
+      yPercent: 100,
+      duration: 0.85,
+      stagger: {
+        amount: 0.18, // spread total muy comprimido → se siente como uno solo
+        from: "end",
+      },
+      ease: "expo.inOut",
+      onComplete: () => {
+        const lw = document.querySelector(".loading-wrapper");
+        if (lw) lw.style.pointerEvents = "none";
+      },
+    },
+    "-=0.35" // empieza 350ms antes de que terminen las barras
+  );
