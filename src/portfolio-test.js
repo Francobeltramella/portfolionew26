@@ -355,29 +355,39 @@ animate();
 
 ///Loading
 
-  gsap.to(".bg-color-courting", {
-  x: "100%",
-  duration: 4.5,
-  delay: 0.4,
-
-  stagger: 0.7,
-  onComplete: function () {
-    gsap.to(".courting-wrapper", {
-      y: "100%",
-      stagger: {
-        amount: 0.6,
-        from: "end",
-        onComplete: function () {
-          document.querySelector(".loading-wrapper").style.pointerEvents =
-            "none";
-        },
-      },
-    });
-  },
-});
-gsap.to(".heading-2", {
-  x: "100%",
-  duration: 4,
-  delay: 0.3,
-  stagger: 0.7,
-});
+const tl = gsap.timeline({
+    defaults: {
+      ease: "power3.out",
+    },
+    onComplete: () => {
+      document.querySelector(".loading-wrapper").style.pointerEvents = "none";
+    },
+  });
+  
+  // BG slide
+  tl.to(".bg-color-courting", {
+    x: "100%",
+    duration: 1.6,
+    stagger: {
+      each: 0.12,
+    },
+  }, 0);
+  
+  // Heading acompaña (no separado)
+  tl.to(".heading-2", {
+    x: "100%",
+    duration: 1.4,
+    stagger: {
+      each: 0.12,
+    },
+  }, 0.05);
+  
+  // Wrapper sale después (pero pegado)
+  tl.to(".courting-wrapper", {
+    y: "100%",
+    duration: 1.2,
+    stagger: {
+      amount: 0.4,
+      from: "end",
+    },
+  }, "-=0.6");
