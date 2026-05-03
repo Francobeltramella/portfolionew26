@@ -54,18 +54,21 @@ loadingTl
   );
 
 // =====================
-// LOADING MANAGER
+// LOADING CONTROL MANUAL
 // =====================
 
-const manager = new THREE.LoadingManager();
+let texturesLoaded = false;
+let glbLoaded = false;
 
-manager.onLoad = () => {
-  requestAnimationFrame(() => {
+function checkAllLoaded() {
+  if (texturesLoaded && glbLoaded) {
     requestAnimationFrame(() => {
-      loadingTl.play();
+      requestAnimationFrame(() => {
+        loadingTl.play();
+      });
     });
-  });
-};
+  }
+}
 
 // =====================
 // SCENE
@@ -226,7 +229,8 @@ imageElements.forEach((img) => {
   img.style.visibility = "hidden";
 });
 
-const textureLoader = new THREE.TextureLoader(manager);
+// TextureLoader SIN manager — control manual
+const textureLoader = new THREE.TextureLoader();
 const imagePlanes = [];
 
 const ORBIT_RADIUS = 6.5;
@@ -257,43 +261,55 @@ function setHover(value) {
   });
 }
 
-imageElements.forEach((img, index) => {
-  const texture = textureLoader.load(img.src);
+// Cargamos texturas con Promise.all para saber exactamente cuándo terminaron TODAS
+const meshBuffer = new Array(imageElements.length); // array con slots fijos para mantener orden
 
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+const texturePromises = imageElements.map((img, index) => {
+  return new Promise((resolve) => {
+    const texture = textureLoader.load(img.src, () => resolve());
 
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 80, 20);
-  const angleOffset = (index / TOTAL) * Math.PI * 2;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const material = new THREE.ShaderMaterial({
-    transparent: false,
-    depthWrite: true,
-    depthTest: true,
-    side: THREE.DoubleSide,
-    uniforms: {
-      uTexture: { value: texture },
-      uTime: { value: 0 },
-      uNoiseStrength: { value: 0.022 },
-      uAlpha: { value: 1.0 },
-      uArcAngle: { value: ARC_PER_CARD },
-      uRadius: { value: ORBIT_RADIUS },
-      uAngleOffset: { value: angleOffset },
-      uMouse3D: { value: mouse3DSmooth },
-      uHoverStrength: { value: 0.0 },
-    },
-    vertexShader,
-    fragmentShader,
+    const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 80, 20);
+    const angleOffset = (index / TOTAL) * Math.PI * 2;
+
+    const material = new THREE.ShaderMaterial({
+      transparent: false,
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uTexture: { value: texture },
+        uTime: { value: 0 },
+        uNoiseStrength: { value: 0.022 },
+        uAlpha: { value: 1.0 },
+        uArcAngle: { value: ARC_PER_CARD },
+        uRadius: { value: ORBIT_RADIUS },
+        uAngleOffset: { value: angleOffset },
+        uMouse3D: { value: mouse3DSmooth },
+        uHoverStrength: { value: 0.0 },
+      },
+      vertexShader,
+      fragmentShader,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = -3.0;
+    mesh.renderOrder = 0;
+
+    cylinderGroup.add(mesh);
+    meshBuffer[index] = mesh; // slot fijo, sin importar orden de carga
   });
+});
 
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = -3.0;
-  mesh.renderOrder = 0;
-
-  cylinderGroup.add(mesh);
-  imagePlanes.push(mesh);
+Promise.all(texturePromises).then(() => {
+  // Llenamos imagePlanes en orden correcto
+  meshBuffer.forEach((mesh) => imagePlanes.push(mesh));
+  texturesLoaded = true;
+  checkAllLoaded();
 });
 
 // =====================
@@ -424,7 +440,7 @@ container.addEventListener("mouseleave", () => {
 // LOAD GLB
 // =====================
 
-const loader = new GLTFLoader(manager);
+const loader = new GLTFLoader();
 
 loader.load(
   "https://3dlive.netlify.app/portfolio.glb",
@@ -445,14 +461,17 @@ loader.load(
     });
 
     scene.add(glbModel);
+
+    glbLoaded = true;
+    checkAllLoaded();
   },
   undefined,
   (error) => {
     console.error("Error cargando el GLB:", error);
 
-    requestAnimationFrame(() => {
-      loadingTl.play();
-    });
+    // En caso de error también desbloqueamos para que no quede colgado
+    glbLoaded = true;
+    checkAllLoaded();
   }
 );
 
