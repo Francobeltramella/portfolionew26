@@ -341,16 +341,18 @@ animate();
 // =====================
 // LOADING
 // =====================
+const speed = 1.5;
+
 gsap.to(".bg-color-courting", {
   x: "100%",
-  duration: 2.5,
-  delay: 0.2,
-  stagger: 0.3,
+  duration: 4.5 * speed,
+  delay: 0.4 * speed,
+  stagger: 0.7 * speed,
   onComplete: function () {
     gsap.to(".courting-wrapper", {
       y: "100%",
       stagger: {
-        amount: 0.2,
+        amount: 0.6 * speed,
         from: "end",
         onComplete: function () {
           document.querySelector(".loading-wrapper").style.pointerEvents = "none";
@@ -362,7 +364,7 @@ gsap.to(".bg-color-courting", {
 
 gsap.to(".heading-2", {
   x: "100%",
-  duration: 2,
-  delay: 0.2,
-  stagger: 0.3,
+  duration: 4 * speed,
+  delay: 0.3 * speed,
+  stagger: 0.7 * speed,
 });
