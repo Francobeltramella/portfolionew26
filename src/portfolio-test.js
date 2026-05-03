@@ -145,7 +145,7 @@ const fragmentShader = `
 // =====================
 // IMAGE PLANES
 // =====================
-const imageElements = [...document.querySelectorAll(".image-project")];
+const imageElements = [...document.querySelectorAll(".image-project")].slice(0, 8);
 imageElements.forEach(img => {
   img.style.opacity = "0";
   img.style.visibility = "hidden";
