@@ -341,60 +341,28 @@ animate();
 // =====================
 // LOADING
 // =====================
-gsap.set(".bg-color-courting, .heading-2, .courting-wrapper", {
-    x: 0,
-    y: 0,
-    force3D: true,
-    willChange: "transform",
-  });
-  
-  gsap.set(".loading-wrapper", {
-    pointerEvents: "auto",
-  });
-  
-  const tl = gsap.timeline({
-    defaults: {
-      ease: "power4.out",
-      overwrite: true,
-    },
-    onComplete: () => {
-      gsap.set(".loading-wrapper", {
-        pointerEvents: "none",
-        autoAlpha: 0,
-      });
-  
-      gsap.set(".bg-color-courting, .heading-2, .courting-wrapper", {
-        clearProps: "willChange",
-      });
-    },
-  });
-  
-  tl.to(".bg-color-courting", {
-    xPercent: 100,
-    duration: 1.6,
-    stagger: 0.08,
-  });
-  
-  tl.to(
-    ".heading-2",
-    {
-      xPercent: 100,
-      duration: 1.4,
-      stagger: 0.06,
-    },
-    "-=1.2"
-  );
-  
-  tl.to(
-    ".courting-wrapper",
-    {
-      yPercent: 100,
-      duration: 1.3,
-      ease: "power3.inOut",
+gsap.to(".bg-color-courting", {
+  x: "100%",
+  duration: 4.5,
+  delay: 0.4,
+  stagger: 0.7,
+  onComplete: function () {
+    gsap.to(".courting-wrapper", {
+      y: "100%",
       stagger: {
-        amount: 0.25,
+        amount: 0.6,
         from: "end",
+        onComplete: function () {
+          document.querySelector(".loading-wrapper").style.pointerEvents = "none";
+        },
       },
-    },
-    "-=0.4"
-  );
+    });
+  },
+});
+
+gsap.to(".heading-2", {
+  x: "100%",
+  duration: 4,
+  delay: 0.3,
+  stagger: 0.7,
+});
