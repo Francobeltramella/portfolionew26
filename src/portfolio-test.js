@@ -156,7 +156,7 @@ const imagePlanes = [];
 
 const ORBIT_RADIUS = 6.5;
 const CARD_W = 5.4;
-const CARD_H = 2.05;
+const CARD_H = 3.05;
 const TOTAL = imageElements.length;
 const GAP = 0.82;
 const ARC_PER_CARD = ((Math.PI * 2) / TOTAL) * GAP;
