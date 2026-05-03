@@ -1,13 +1,10 @@
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import gsap from "gsap";
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import gsap from 'gsap';
 
 const container = document.querySelector("._3d-element");
 
-// =====================
-// SCENE
-// =====================
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
@@ -16,81 +13,26 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-
 camera.position.set(0, 0, 28);
 
-const renderer = new THREE.WebGLRenderer({
-  antialias: true,
-  alpha: true,
-  powerPreference: "high-performance",
-});
-
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
 renderer.setSize(container.clientWidth, container.clientHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.sortObjects = true;
-
 container.appendChild(renderer.domElement);
 
-// =====================
-// LIGHTS
-// =====================
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(2, 3, 4);
 scene.add(dirLight);
-
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
 const cursorLight = new THREE.PointLight(0xffffff, 8, 500);
 scene.add(cursorLight);
 
-// =====================
-// CONTROLS
-// =====================
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.enableZoom = false;
-
-// =====================
-// LOADER ANIMATION
-// =====================
-function runIntroAnimation() {
-  gsap.to(".bg-color-courting", {
-    x: "100%",
-    duration: 3.4,
-    delay: 0.35,
-    stagger: 0.5,
-    ease: "power2.inOut",
-    onComplete: function () {
-      gsap.to(".courting-wrapper", {
-        y: "100%",
-        duration: 1.2,
-        ease: "power3.inOut",
-        stagger: {
-          amount: 0.45,
-          from: "end",
-        },
-        onComplete: function () {
-          const loadingWrapper = document.querySelector(".loading-wrapper");
-
-          if (loadingWrapper) {
-            loadingWrapper.style.pointerEvents = "none";
-          }
-
-          loadGLB();
-        },
-      });
-    },
-  });
-
-  gsap.to(".heading-2", {
-    x: "100%",
-    duration: 3.2,
-    delay: 0.25,
-    stagger: 0.5,
-    ease: "power2.inOut",
-  });
-}
 
 // =====================
 // SHADERS
@@ -99,7 +41,6 @@ const vertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorldPos;
-
   uniform float uTime;
   uniform float uArcAngle;
   uniform float uRadius;
@@ -157,6 +98,8 @@ const fragmentShader = `
   void main() {
     vec2 uv = vUv;
 
+    float edgeY = smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);
+
     vec4 tex = texture2D(uTexture, uv);
 
     float dist = distance(vWorldPos, uMouse3D);
@@ -176,7 +119,6 @@ const fragmentShader = `
 
     float lateralLight = clamp(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0, 1.0);
     float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
-
     tex.rgb *= 0.6 + lateralLight * 0.5;
     tex.rgb *= 1.0 - rimDark * 0.35;
 
@@ -194,8 +136,7 @@ const fragmentShader = `
 // IMAGE PLANES
 // =====================
 const imageElements = [...document.querySelectorAll(".image-project")].slice(0, 8);
-
-imageElements.forEach((img) => {
+imageElements.forEach(img => {
   img.style.opacity = "0";
   img.style.visibility = "hidden";
 });
@@ -215,19 +156,15 @@ scene.add(cylinderGroup);
 
 const mouse3D = new THREE.Vector3(9999, 9999, 9999);
 const mouse3DSmooth = new THREE.Vector3(9999, 9999, 9999);
-
 let hoverStrength = 0;
-let hoverTween = null;
 
 imageElements.forEach((img, index) => {
   const texture = textureLoader.load(img.src);
-
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 60, 16);
+  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 80, 20);
   const angleOffset = (index / TOTAL) * Math.PI * 2;
 
   const material = new THREE.ShaderMaterial({
@@ -247,7 +184,7 @@ imageElements.forEach((img, index) => {
       uHoverStrength: { value: 0.0 },
     },
     vertexShader,
-    fragmentShader,
+    fragmentShader
   });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -259,7 +196,7 @@ imageElements.forEach((img, index) => {
 });
 
 // =====================
-// ANIMATE IMAGES
+// ANIMATE
 // =====================
 function animateImages(time) {
   cylinderGroup.rotation.y = time * 0.28;
@@ -284,31 +221,14 @@ function animateImages(time) {
 // =====================
 const mouse = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
-
 const planeMouse = new THREE.Plane(new THREE.Vector3(0, 0, 1), -8);
-const cylinderPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -ORBIT_RADIUS);
-
 let intersecting = false;
 let glbModel = null;
 
-function animateHoverStrength(value, duration) {
-  if (hoverTween) hoverTween.kill();
+const cylinderPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -ORBIT_RADIUS);
 
-  const obj = { v: hoverStrength };
-
-  hoverTween = gsap.to(obj, {
-    v: value,
-    duration,
-    ease: "power2.out",
-    onUpdate: () => {
-      hoverStrength = obj.v;
-    },
-  });
-}
-
-container.addEventListener("mousemove", (event) => {
+container.addEventListener('mousemove', (event) => {
   const rect = container.getBoundingClientRect();
-
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
@@ -320,115 +240,78 @@ container.addEventListener("mousemove", (event) => {
 
   const cylinderPoint = new THREE.Vector3();
   raycaster.ray.intersectPlane(cylinderPlane, cylinderPoint);
-
   if (cylinderPoint) {
     mouse3D.copy(cylinderPoint);
     mouse3D.y -= 3.0;
   }
 
-  animateHoverStrength(1.0, 0.4);
+  gsap.to({ v: hoverStrength }, {
+    v: 1.0,
+    duration: 0.4,
+    onUpdate: function() { hoverStrength = this.targets()[0].v; }
+  });
 
   if (!glbModel) return;
-
   const intersects = raycaster.intersectObject(glbModel, true);
 
   if (intersects.length > 0 && !intersecting) {
     intersecting = true;
-
-    gsap.to(document.body, {
-      backgroundColor: "#000",
-      duration: 0.4,
-      overwrite: true,
-    });
-
-    gsap.to(".no-hover", {
-      opacity: 0,
-      duration: 0.4,
-      overwrite: true,
-    });
-
-    gsap.to(".hover", {
-      opacity: 1,
-      duration: 0.4,
-      overwrite: true,
-    });
-
-    gsap.to(".hover-black", {
-      color: "#F4F1EA",
-      duration: 0.4,
-      overwrite: true,
-    });
+    gsap.to(document.body, { backgroundColor: "#000", duration: 0.4 });
+    gsap.to(".no-hover", { opacity: 0, duration: 0.4 });
+    gsap.to(".hover", { opacity: 1, duration: 0.4 });
+    gsap.to(".hover-black", { color: "#F4F1EA", duration: 0.4 });
   }
 
   if (intersects.length === 0 && intersecting) {
     intersecting = false;
-
-    gsap.to(document.body, {
-      backgroundColor: "#F4F1EA",
-      duration: 0.4,
-      overwrite: true,
-    });
-
-    gsap.to(".no-hover", {
-      opacity: 1,
-      duration: 0.4,
-      overwrite: true,
-    });
-
-    gsap.to(".hover", {
-      opacity: 0,
-      duration: 0.4,
-      overwrite: true,
-    });
-
-    gsap.to(".hover-black", {
-      color: "#000",
-      duration: 0.4,
-      overwrite: true,
-    });
+    gsap.to(document.body, { backgroundColor: "#F4F1EA", duration: 0.4 });
+    gsap.to(".no-hover", { opacity: 1, duration: 0.4 });
+    gsap.to(".hover", { opacity: 0, duration: 0.4 });
+    gsap.to(".hover-black", { color: "#000", duration: 0.4 });
   }
 });
 
-container.addEventListener("mouseleave", () => {
+container.addEventListener('mouseleave', () => {
   mouse3D.set(9999, 9999, 9999);
-  animateHoverStrength(0.0, 0.6);
+  gsap.to({ v: hoverStrength }, {
+    v: 0.0,
+    duration: 0.6,
+    onUpdate: function() { hoverStrength = this.targets()[0].v; }
+  });
 });
 
 // =====================
-// LOAD GLB AFTER INTRO
+// LOAD MODEL
 // =====================
-function loadGLB() {
-  const loader = new GLTFLoader();
+const loader = new GLTFLoader();
 
-  loader.load(
-    "https://3dlive.netlify.app/portfolio.glb",
-
-    (gltf) => {
+loader.load(
+  "https://3dlive.netlify.app/portfolio.glb",
+  (gltf) => {
+    // El callback de GLTFLoader llega en el main thread justo
+    // entre frames. Diferimos 2 rAF para que no pise una animación
+    // GSAP activa — el parse ya terminó, solo queda el scene.add
+    // que dispara el shader compile + upload a GPU.
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          glbModel = gltf.scene;
-          glbModel.position.set(0, 0, -2);
+        glbModel = gltf.scene;
+        glbModel.position.set(0, 0, -2);
 
-          glbModel.traverse((child) => {
-            if (child.isMesh) {
-              child.renderOrder = 10;
-              child.frustumCulled = true;
-            }
-          });
-
-          scene.add(glbModel);
-          renderer.compile(scene, camera);
+        glbModel.traverse(child => {
+          if (child.isMesh) {
+            child.renderOrder = 10;
+          }
         });
+
+        scene.add(glbModel);
+
+        // Compila shaders en este frame "vacío" antes de que
+        // el usuario interactúe — evita el hitch en el primer hover.
+        renderer.compile(scene, camera);
       });
-    },
-
-    undefined,
-
-    (error) => {
-      console.error("GLB loading error:", error);
-    }
-  );
-}
+    });
+  }
+);
 
 // =====================
 // RESIZE
@@ -436,9 +319,8 @@ function loadGLB() {
 window.addEventListener("resize", () => {
   camera.aspect = container.clientWidth / container.clientHeight;
   camera.updateProjectionMatrix();
-
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 });
 
 // =====================
@@ -448,9 +330,7 @@ const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
-
   const time = clock.getElapsedTime();
-
   controls.update();
   animateImages(time);
   renderer.render(scene, camera);
@@ -459,6 +339,30 @@ function animate() {
 animate();
 
 // =====================
-// INIT
+// LOADING
 // =====================
-runIntroAnimation();
+gsap.to(".bg-color-courting", {
+  x: "100%",
+  duration: 4.5,
+  delay: 0.4,
+  stagger: 0.7,
+  onComplete: function () {
+    gsap.to(".courting-wrapper", {
+      y: "100%",
+      stagger: {
+        amount: 0.6,
+        from: "end",
+        onComplete: function () {
+          document.querySelector(".loading-wrapper").style.pointerEvents = "none";
+        },
+      },
+    });
+  },
+});
+
+gsap.to(".heading-2", {
+  x: "100%",
+  duration: 4,
+  delay: 0.3,
+  stagger: 0.7,
+});
