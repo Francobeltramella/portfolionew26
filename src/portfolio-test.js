@@ -138,7 +138,7 @@ const fragmentShader = `
     float vignette = smoothstep(0.6, 0.1, length(uv - 0.5));
     tex.rgb *= 0.78 + vignette * 0.22;
 
-    gl_FragColor = vec4(tex.rgb, uAlpha * edgeY);
+    gl_FragColor = vec4(tex.rgb, uAlpha);
   }
 `;
 
