@@ -357,37 +357,37 @@ animate();
 
 const tl = gsap.timeline({
     defaults: {
-      ease: "power3.out",
+      ease: "power2.inOut", // más suave, menos agresivo
     },
     onComplete: () => {
       document.querySelector(".loading-wrapper").style.pointerEvents = "none";
     },
   });
   
-  // BG slide
+  // BG (mantenemos duración larga)
   tl.to(".bg-color-courting", {
     x: "100%",
-    duration: 1.6,
+    duration: 4,
     stagger: {
-      each: 0.12,
+      each: 0.25, // antes 0.7 → demasiado lento y cortado
     },
   }, 0);
   
   // Heading acompaña (no separado)
   tl.to(".heading-2", {
     x: "100%",
-    duration: 1.4,
+    duration: 3.8,
     stagger: {
-      each: 0.12,
+      each: 0.25,
     },
-  }, 0.05);
+  }, 0.1);
   
-  // Wrapper sale después (pero pegado)
+  // Wrapper sale con overlap leve
   tl.to(".courting-wrapper", {
     y: "100%",
-    duration: 1.2,
+    duration: 1.6,
     stagger: {
-      amount: 0.4,
+      amount: 0.5,
       from: "end",
     },
-  }, "-=0.6");
+  }, "-=1.2");
