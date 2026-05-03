@@ -344,13 +344,13 @@ animate();
 gsap.to(".bg-color-courting", {
   x: "100%",
   duration: 2.5,
-  delay: 0.4,
-  stagger: 0.7,
+  delay: 0.2,
+  stagger: 0.3,
   onComplete: function () {
     gsap.to(".courting-wrapper", {
       y: "100%",
       stagger: {
-        amount: 0.6,
+        amount: 0.2,
         from: "end",
         onComplete: function () {
           document.querySelector(".loading-wrapper").style.pointerEvents = "none";
@@ -363,6 +363,6 @@ gsap.to(".bg-color-courting", {
 gsap.to(".heading-2", {
   x: "100%",
   duration: 2,
-  delay: 0.3,
-  stagger: 0.7,
+  delay: 0.2,
+  stagger: 0.3,
 });
