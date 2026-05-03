@@ -341,52 +341,60 @@ animate();
 // =====================
 // LOADING
 // =====================
-gsap.set([".bg-color-courting", ".heading-2", ".courting-wrapper"], {
+gsap.set(".bg-color-courting, .heading-2, .courting-wrapper", {
+    x: 0,
+    y: 0,
     force3D: true,
     willChange: "transform",
   });
   
+  gsap.set(".loading-wrapper", {
+    pointerEvents: "auto",
+  });
+  
   const tl = gsap.timeline({
     defaults: {
-      ease: "power3.inOut",
+      ease: "power4.out",
+      overwrite: true,
     },
     onComplete: () => {
-      const loading = document.querySelector(".loading-wrapper");
-      if (loading) {
-        loading.style.pointerEvents = "none";
-        loading.style.visibility = "hidden";
-      }
+      gsap.set(".loading-wrapper", {
+        pointerEvents: "none",
+        autoAlpha: 0,
+      });
+  
+      gsap.set(".bg-color-courting, .heading-2, .courting-wrapper", {
+        clearProps: "willChange",
+      });
     },
   });
   
   tl.to(".bg-color-courting", {
     xPercent: 100,
-    duration: 2.4,
-    stagger: {
-      each: 0.18,
-      ease: "power2.out",
-    },
+    duration: 1.6,
+    stagger: 0.08,
   });
   
   tl.to(
     ".heading-2",
     {
       xPercent: 100,
-      duration: 2.2,
-      ease: "expo.inOut",
-      stagger: {
-        each: 0.16,
-      },
+      duration: 1.4,
+      stagger: 0.06,
     },
-    "-=2.1"
+    "-=1.2"
   );
   
-  tl.to(".courting-wrapper", {
-    yPercent: 100,
-    duration: 1.8,
-    ease: "expo.inOut",
-    stagger: {
-      amount: 0.45,
-      from: "end",
+  tl.to(
+    ".courting-wrapper",
+    {
+      yPercent: 100,
+      duration: 1.3,
+      ease: "power3.inOut",
+      stagger: {
+        amount: 0.25,
+        from: "end",
+      },
     },
-  });
+    "-=0.4"
+  );
