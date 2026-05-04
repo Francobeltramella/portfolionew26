@@ -355,32 +355,39 @@ animate();
 
 ///Loading
 
-gsap.to(".bg-color-courting", {
-    x: "100%",
-    duration: 4.2,
-    delay: 0.4,
-    ease: "power1.out", // más liviano que power3
-    stagger: 0.35, // antes 0.7 → muy separado
-    onComplete: function () {
-      gsap.to(".courting-wrapper", {
-        y: "100%",
-        duration: 1.4,
-        ease: "power1.out",
-        stagger: {
-          amount: 0.4,
-          from: "end",
-        },
-        onComplete: function () {
-          document.querySelector(".loading-wrapper").style.pointerEvents = "none";
-        },
-      });
-    },
-  });
-  
-  gsap.to(".heading-2", {
-    x: "100%",
-    duration: 4,
-    delay: 0.3,
-    ease: "power1.out",
-    stagger: 0.35,
-  });
+const tl = gsap.timeline({
+  defaults: {
+    ease: "power2.out",
+  },
+  onComplete: () => {
+    document.querySelector(".loading-wrapper").style.pointerEvents = "none";
+  },
+});
+
+// BG
+tl.to(".bg-color-courting", {
+  x: "100%",
+  duration: 4.2,
+  stagger: {
+    each: 0.18, // clave: continuidad sin apuro
+  },
+}, 0);
+
+// Heading acompaña pegado
+tl.to(".heading-2", {
+  x: "100%",
+  duration: 4,
+  stagger: {
+    each: 0.18,
+  },
+}, 0.05);
+
+// Wrapper entra ANTES de que termine todo
+tl.to(".courting-wrapper", {
+  y: "100%",
+  duration: 1.4,
+  stagger: {
+    amount: 0.45,
+    from: "end",
+  },
+}, "-=1.6"); // clave
