@@ -357,37 +357,37 @@ animate();
 
 const tl = gsap.timeline({
     defaults: {
-      ease: "power2.inOut", // más suave, menos agresivo
+      ease: "power2.out",
     },
     onComplete: () => {
       document.querySelector(".loading-wrapper").style.pointerEvents = "none";
     },
   });
   
-  // BG (mantenemos duración larga)
+  // BG
   tl.to(".bg-color-courting", {
     x: "100%",
-    duration: 4,
+    duration: 4.2,
     stagger: {
-      each: 0.25, // antes 0.7 → demasiado lento y cortado
+      each: 0.18, // clave: continuidad sin apuro
     },
   }, 0);
   
-  // Heading acompaña (no separado)
+  // Heading acompaña pegado
   tl.to(".heading-2", {
     x: "100%",
-    duration: 3.8,
+    duration: 4,
     stagger: {
-      each: 0.25,
+      each: 0.18,
     },
-  }, 0.1);
+  }, 0.05);
   
-  // Wrapper sale con overlap leve
+  // Wrapper entra ANTES de que termine todo
   tl.to(".courting-wrapper", {
     y: "100%",
-    duration: 1.6,
+    duration: 1.4,
     stagger: {
-      amount: 0.5,
+      amount: 0.45,
       from: "end",
     },
-  }, "-=1.2");
+  }, "-=1.6"); // clave
