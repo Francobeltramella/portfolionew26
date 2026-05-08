@@ -111,7 +111,6 @@ const fragmentShader = `
     uvDistorted.y += sin(uv.x * 8.0 + uTime * 3.0) * influence * uHoverStrength * 0.015;
 
     tex = texture2D(uTexture, uvDistorted);
-
     tex.rgb += influence * uHoverStrength * 0.18;
 
     float noise = random(uv * 480.0 + uTime * 0.35);
@@ -217,13 +216,18 @@ function animateImages(time) {
 }
 
 // =====================
-// MOUSE
+// MOUSE — FIX CURSOR
 // =====================
 const mouse = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
 const planeMouse = new THREE.Plane(new THREE.Vector3(0, 0, 1), -8);
 let intersecting = false;
 let glbModel = null;
+
+// Vector reusables para no allocar en cada frame
+const _ray = new THREE.Ray();
+const _worldPos = new THREE.Vector3();
+const _ndcPos = new THREE.Vector3();
 
 container.addEventListener('mousemove', (event) => {
   const rect = container.getBoundingClientRect();
@@ -237,23 +241,39 @@ container.addEventListener('mousemove', (event) => {
   raycaster.ray.intersectPlane(planeMouse, point);
   cursorLight.position.copy(point);
 
-  // ✅ FIX CURSOR: raycast contra los meshes reales en vez de un plano fijo
-  const hits = raycaster.intersectObjects(imagePlanes, false);
-  if (hits.length > 0) {
-    // Hit directo sobre una card — posición exacta en world space
-    mouse3D.copy(hits[0].point);
-    // Compensar el offset Y del grupo
-    mouse3D.y -= 0; // el hit.point ya está en world space, no necesita offset
-  } else {
-    // Fallback: plano frontal del cilindro cuando no hay hit
-    const frontPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -ORBIT_RADIUS);
-    const cp = new THREE.Vector3();
-    raycaster.ray.intersectPlane(frontPlane, cp);
-    if (cp) {
-      mouse3D.copy(cp);
-      mouse3D.y -= 3.0;
-    }
-  }
+  // ✅ FIX REAL DEL CURSOR
+  // El vertex shader construye la posición así:
+  //   pos.x = cos(worldAngle) * RADIUS
+  //   pos.z = sin(worldAngle) * RADIUS  
+  //   pos.y = position.y  (luego el mesh tiene position.y = -3)
+  // 
+  // Entonces el mouse3D tiene que estar en ese mismo espacio.
+  // Hacemos unproject del mouse a la profundidad z=0 (centro del cilindro)
+  // y luego proyectamos XY al radio del cilindro.
+
+  _ndcPos.set(mouse.x, mouse.y, 0.5);
+  _ndcPos.unproject(camera);
+  
+  // Dirección del rayo
+  const dir = _ndcPos.sub(camera.position).normalize();
+  
+  // Intersección con el plano z=0 (plano del eje del cilindro)
+  // camera.position.z + t * dir.z = 0  →  t = -camera.position.z / dir.z
+  const t = -camera.position.z / dir.z;
+  
+  _worldPos.set(
+    camera.position.x + dir.x * t,
+    camera.position.y + dir.y * t,
+    0
+  );
+  
+  // Proyectamos al radio del cilindro — normalizamos XZ y multiplicamos por ORBIT_RADIUS
+  const len = Math.sqrt(_worldPos.x * _worldPos.x + ORBIT_RADIUS * ORBIT_RADIUS);
+  mouse3D.set(
+    _worldPos.x,
+    _worldPos.y + 3.0, // +3 para compensar mesh.position.y = -3
+    ORBIT_RADIUS       // z fija en el frente del cilindro
+  );
 
   // Hover strength
   gsap.to({ v: hoverStrength }, {
@@ -344,27 +364,24 @@ const tl = gsap.timeline({
   },
 });
 
-// Barras de color salen primero
 tl.to(".bg-color-courting", {
   x: "100%",
-  duration: 1.8,
-  stagger: { each: 0.12 },
+  duration: 2.4,
+  stagger: { each: 0.22 },
 }, 0);
 
-// Heading sale casi en simultáneo, levemente después
 tl.to(".heading-2", {
   x: "100%",
-  duration: 1.4,
-  stagger: { each: 0.08 },
-}, 0.05);
+  duration: 2.0,
+  stagger: { each: 0.18 },
+}, 0.1);
 
-// Wrapper sale cuando las barras ya van a la mitad
 tl.to(".courting-wrapper", {
   y: "100%",
-  duration: 1.2,
+  duration: 1.4,
   ease: "power3.inOut",
   stagger: {
-    amount: 0.2,
+    amount: 0.3,
     from: "end",
   },
-}, "-=0.9");
+}, "-=1.0");
