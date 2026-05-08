@@ -362,7 +362,7 @@ container.addEventListener('mouseleave', () => {
 // =====================
 const loader = new GLTFLoader();
 loader.load(
-  "https://3dlive.netlify.app/portfolio.glb",
+  "https://assets-hosts.netlify.app/models/angelo-v1.glb",
   (gltf) => {
     glbModel = gltf.scene;
     glbModel.position.set(0, 0, -2);
