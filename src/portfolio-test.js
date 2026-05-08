@@ -35,12 +35,13 @@ controls.enableDamping = true;
 controls.enableZoom = false;
 
 // =====================
-// SHADERS
+// SHADERS — NIVEL AWWWARDS
 // =====================
 const vertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorldPos;
+  varying float vInfluence;
   uniform float uTime;
   uniform float uArcAngle;
   uniform float uRadius;
@@ -60,14 +61,39 @@ const vertexShader = `
     pos.z = sin(worldAngle) * uRadius;
     pos.y = position.y;
 
-    float dist = distance(pos, uMouse3D);
-    float influence = 1.0 - smoothstep(0.0, 3.5, dist);
-
+    // Normal radial del cilindro
     vec3 nor = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
-    pos += nor * influence * uHoverStrength * 0.6;
 
-    float wave = sin(dist * 2.5 - uTime * 4.0) * influence * uHoverStrength * 0.15;
-    pos += nor * wave;
+    // Distancia al cursor en espacio local
+    float dist = distance(pos, uMouse3D);
+
+    // Influencia con falloff suave — radio más grande para efecto más épico
+    float influence = 1.0 - smoothstep(0.0, 5.0, dist);
+    influence = pow(influence, 1.4); // curva más dramática
+    vInfluence = influence;
+
+    // ── EFECTO 1: Bulge hacia afuera (push radial) ──
+    float bulge = influence * uHoverStrength * 1.1;
+    pos += nor * bulge;
+
+    // ── EFECTO 2: Hollow/sink en el centro exacto del cursor ──
+    // El centro se hunde levemente, creando forma de "membrana presionada"
+    float innerDist = distance(pos.xz, uMouse3D.xz);
+    float innerInfluence = 1.0 - smoothstep(0.0, 1.8, innerDist);
+    innerInfluence = pow(innerInfluence, 2.0);
+    pos -= nor * innerInfluence * uHoverStrength * 0.55;
+
+    // ── EFECTO 3: Wave ripple primaria — se expande desde el cursor ──
+    float wave1 = sin(dist * 3.2 - uTime * 5.0) * influence * uHoverStrength * 0.18;
+    pos += nor * wave1;
+
+    // ── EFECTO 4: Wave secundaria perpendicular — movimiento en Y ──
+    float wave2 = sin(dist * 2.0 - uTime * 3.5 + 1.57) * influence * uHoverStrength * 0.10;
+    pos.y += wave2;
+
+    // ── EFECTO 5: Micro turbulencia en los bordes del influence ──
+    float edgeTurb = sin(pos.y * 6.0 + uTime * 4.0) * (influence * (1.0 - influence) * 4.0) * uHoverStrength * 0.08;
+    pos += nor * edgeTurb;
 
     vec3 norFinal = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
     vNormal = normalize(normalMatrix * norFinal);
@@ -90,40 +116,83 @@ const fragmentShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorldPos;
+  varying float vInfluence;
 
   float random(vec2 st) {
     return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
   }
 
+  // Value noise suave
+  float noise(vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = random(i);
+    float b = random(i + vec2(1.0, 0.0));
+    float c = random(i + vec2(0.0, 1.0));
+    float d = random(i + vec2(1.0, 1.0));
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+  }
+
   void main() {
     vec2 uv = vUv;
+    float inf = vInfluence * uHoverStrength;
 
-    vec4 tex = texture2D(uTexture, uv);
+    // ── UV LENS: deformación tipo lente de agua ──
+    vec2 center = vec2(0.5);
+    vec2 toCenter = uv - center;
+    float lensDist = length(toCenter);
 
-    float dist = distance(vWorldPos, uMouse3D);
-    float influence = 1.0 - smoothstep(0.0, 3.5, dist);
+    // Lente que magnifica en el centro del influence
+    vec2 lensUV = uv + toCenter * inf * 0.22 * (1.0 - lensDist * 1.5);
 
-    vec2 uvDistorted = uv;
-    uvDistorted += (uv - 0.5) * influence * uHoverStrength * 0.08;
-    uvDistorted.x += sin(uv.y * 8.0 + uTime * 3.0) * influence * uHoverStrength * 0.015;
-    uvDistorted.y += sin(uv.x * 8.0 + uTime * 3.0) * influence * uHoverStrength * 0.015;
+    // ── RIPPLE UV animado ──
+    float ripple = sin(lensDist * 12.0 - uTime * 4.5) * inf * 0.028;
+    lensUV += normalize(toCenter + 0.001) * ripple;
 
-    tex = texture2D(uTexture, uvDistorted);
-    tex.rgb += influence * uHoverStrength * 0.18;
+    // ── ABERRACIÓN CROMÁTICA ──
+    // Cada canal RGB samplea desde un UV levemente diferente
+    float aberration = inf * 0.032;
+    vec2 aberDir = normalize(toCenter + 0.001);
 
-    float noise = random(uv * 480.0 + uTime * 0.35);
-    tex.rgb += (noise - 0.5) * uNoiseStrength;
+    float r = texture2D(uTexture, lensUV + aberDir * aberration * 1.0).r;
+    float g = texture2D(uTexture, lensUV).g;
+    float b = texture2D(uTexture, lensUV - aberDir * aberration * 1.0).b;
+    float a = texture2D(uTexture, lensUV).a;
 
+    vec4 tex = vec4(r, g, b, a);
+
+    // ── BRIGHTENING + HOT SPOT en el centro ──
+    // Un highlight puntual tipo reflejo de luz en agua
+    float hotspot = pow(1.0 - smoothstep(0.0, 0.35, lensDist), 3.0) * inf;
+    tex.rgb += hotspot * 0.45;
+
+    // Brightening general en el área de influencia
+    tex.rgb += inf * 0.12;
+
+    // ── GLOW EN EL BORDE DE LA DEFORMACIÓN ──
+    // Donde la influencia pasa de 0 a 1 — anillo luminoso
+    float edgeGlow = smoothstep(0.0, 0.5, inf) * (1.0 - smoothstep(0.5, 1.0, inf));
+    edgeGlow = pow(edgeGlow, 0.8);
+    tex.rgb += edgeGlow * vec3(0.9, 0.95, 1.0) * 0.25;
+
+    // ── GRAIN cinematic ──
+    float grain = random(uv * 520.0 + uTime * 0.4);
+    tex.rgb += (grain - 0.5) * uNoiseStrength;
+
+    // ── LIGHTING lateral + rim ──
     float lateralLight = clamp(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0, 1.0);
     float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
     tex.rgb *= 0.6 + lateralLight * 0.5;
     tex.rgb *= 1.0 - rimDark * 0.35;
 
+    // ── COLOR GRADING ──
     tex.rgb = pow(tex.rgb, vec3(0.95));
     tex.rgb = mix(tex.rgb, tex.rgb * vec3(1.05, 1.0, 0.97), 0.4);
 
-    float vignette = smoothstep(0.6, 0.1, length(uv - 0.5));
-    tex.rgb *= 0.78 + vignette * 0.22;
+    // ── VIGNETTE ──
+    float vignette = smoothstep(0.62, 0.08, length(uv - 0.5));
+    tex.rgb *= 0.76 + vignette * 0.24;
 
     gl_FragColor = vec4(tex.rgb, uAlpha);
   }
@@ -163,7 +232,7 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 80, 20);
+  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 100, 40);
   const angleOffset = (index / TOTAL) * Math.PI * 2;
 
   const material = new THREE.ShaderMaterial({
@@ -174,7 +243,7 @@ imageElements.forEach((img, index) => {
     uniforms: {
       uTexture: { value: texture },
       uTime: { value: 0 },
-      uNoiseStrength: { value: 0.022 },
+      uNoiseStrength: { value: 0.018 },
       uAlpha: { value: 1.0 },
       uArcAngle: { value: ARC_PER_CARD },
       uRadius: { value: ORBIT_RADIUS },
@@ -200,10 +269,9 @@ imageElements.forEach((img, index) => {
 function animateImages(time) {
   cylinderGroup.rotation.y = time * 0.28;
 
-  // ✅ world → local DESPUÉS de rotar, en cada frame
   mouse3DLocal.copy(mouse3DWorld);
   cylinderGroup.worldToLocal(mouse3DLocal);
-  mouse3DLocalSmooth.lerp(mouse3DLocal, 0.08);
+  mouse3DLocalSmooth.lerp(mouse3DLocal, 0.07);
 
   imagePlanes.forEach((mesh, index) => {
     mesh.material.uniforms.uTime.value = time;
@@ -240,10 +308,7 @@ container.addEventListener('mousemove', (event) => {
   raycaster.ray.intersectPlane(planeMouse, lightPoint);
   cursorLight.position.copy(lightPoint);
 
-  // ✅ FIX PERSPECTIVA: proyectamos el rayo hasta z = ORBIT_RADIUS
-  // (la superficie frontal del cilindro, no el eje central)
-  // Rayo: P = origin + t * dir
-  // Queremos z = ORBIT_RADIUS → t = (ORBIT_RADIUS - origin.z) / dir.z
+  // ✅ Proyección al frente del cilindro con perspectiva correcta
   const origin = camera.position.clone();
   const dir = new THREE.Vector3(mouse.x, mouse.y, 0.5)
     .unproject(camera)
@@ -253,14 +318,13 @@ container.addEventListener('mousemove', (event) => {
   const tFront = (ORBIT_RADIUS - origin.z) / dir.z;
   mouse3DWorld.set(
     origin.x + dir.x * tFront,
-    origin.y + dir.y * tFront + 3.0, // +3 compensa mesh.position.y = -3
+    origin.y + dir.y * tFront + 3.0,
     ORBIT_RADIUS
   );
 
-  // Hover strength
   gsap.to({ v: hoverStrength }, {
     v: 1.0,
-    duration: 0.4,
+    duration: 0.35,
     onUpdate: function() { hoverStrength = this.targets()[0].v; }
   });
 
@@ -288,7 +352,7 @@ container.addEventListener('mouseleave', () => {
   mouse3DWorld.set(9999, 9999, 9999);
   gsap.to({ v: hoverStrength }, {
     v: 0.0,
-    duration: 0.6,
+    duration: 0.7,
     onUpdate: function() { hoverStrength = this.targets()[0].v; }
   });
 });
@@ -337,11 +401,11 @@ function animate() {
 animate();
 
 // =====================
-// LOADING — delay inicial + lento
+// LOADING
 // =====================
 const tl = gsap.timeline({
   defaults: { ease: "power2.out" },
-  delay: 1.2, // ✅ espera que los shaders y el GLB arranquen
+  delay: 1.4,
   onComplete: () => {
     document.querySelector(".loading-wrapper").style.pointerEvents = "none";
   },
@@ -349,14 +413,14 @@ const tl = gsap.timeline({
 
 tl.to(".bg-color-courting", {
   x: "100%",
-  duration: 3.8,
-  stagger: { each: 0.42 },
+  duration: 4.2,
+  stagger: { each: 0.45 },
 }, 0);
 
 tl.to(".heading-2", {
   x: "100%",
-  duration: 3.2,
-  stagger: { each: 0.36 },
+  duration: 3.6,
+  stagger: { each: 0.38 },
 }, 0.2);
 
 tl.to(".courting-wrapper", {
