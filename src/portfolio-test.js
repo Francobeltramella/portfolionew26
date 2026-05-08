@@ -3,9 +3,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import gsap from 'gsap';
 
-
-
-
 const container = document.querySelector("._3d-element");
 
 const scene = new THREE.Scene();
@@ -55,7 +52,7 @@ const vertexShader = `
     vUv = uv;
 
     float t = position.x / 5.4;
-        float localAngle = t * uArcAngle;
+    float localAngle = t * uArcAngle;
     float worldAngle = uAngleOffset + localAngle;
 
     vec3 pos;
@@ -63,15 +60,12 @@ const vertexShader = `
     pos.z = sin(worldAngle) * uRadius;
     pos.y = position.y;
 
-    // Deformación por cursor — distancia del vértice al mouse en world space
     float dist = distance(pos, uMouse3D);
     float influence = 1.0 - smoothstep(0.0, 3.5, dist);
 
-    // Empuja los vértices hacia afuera del cilindro (en dirección normal)
     vec3 nor = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
     pos += nor * influence * uHoverStrength * 0.6;
 
-    // Wave ondulante alrededor del punto de contacto
     float wave = sin(dist * 2.5 - uTime * 4.0) * influence * uHoverStrength * 0.15;
     pos += nor * wave;
 
@@ -108,11 +102,9 @@ const fragmentShader = `
 
     vec4 tex = texture2D(uTexture, uv);
 
-    // Distorsión UV cerca del cursor — efecto lente
     float dist = distance(vWorldPos, uMouse3D);
     float influence = 1.0 - smoothstep(0.0, 3.5, dist);
 
-    // Ripple en UV
     vec2 uvDistorted = uv;
     uvDistorted += (uv - 0.5) * influence * uHoverStrength * 0.08;
     uvDistorted.x += sin(uv.y * 8.0 + uTime * 3.0) * influence * uHoverStrength * 0.015;
@@ -120,24 +112,19 @@ const fragmentShader = `
 
     tex = texture2D(uTexture, uvDistorted);
 
-    // Brightening cerca del cursor
     tex.rgb += influence * uHoverStrength * 0.18;
 
-    // Grain
     float noise = random(uv * 480.0 + uTime * 0.35);
     tex.rgb += (noise - 0.5) * uNoiseStrength;
 
-    // Lighting lateral
     float lateralLight = clamp(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0, 1.0);
     float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
     tex.rgb *= 0.6 + lateralLight * 0.5;
     tex.rgb *= 1.0 - rimDark * 0.35;
 
-    // Color grading
     tex.rgb = pow(tex.rgb, vec3(0.95));
     tex.rgb = mix(tex.rgb, tex.rgb * vec3(1.05, 1.0, 0.97), 0.4);
 
-    // Vignette
     float vignette = smoothstep(0.6, 0.1, length(uv - 0.5));
     tex.rgb *= 0.78 + vignette * 0.22;
 
@@ -167,11 +154,8 @@ const ARC_PER_CARD = ((Math.PI * 2) / TOTAL) * GAP;
 const cylinderGroup = new THREE.Group();
 scene.add(cylinderGroup);
 
-// Mouse 3D world position — empieza lejos para que no afecte
 const mouse3D = new THREE.Vector3(9999, 9999, 9999);
-// Smooth mouse — interpolado para que la deformación sea suave
 const mouse3DSmooth = new THREE.Vector3(9999, 9999, 9999);
-// Hover strength — animado con gsap
 let hoverStrength = 0;
 
 imageElements.forEach((img, index) => {
@@ -215,24 +199,22 @@ imageElements.forEach((img, index) => {
 // ANIMATE
 // =====================
 function animateImages(time) {
-    cylinderGroup.rotation.y = time * 0.28;
-    mouse3DSmooth.lerp(mouse3D, 0.08);
-  
-    imagePlanes.forEach((mesh, index) => {
-      mesh.material.uniforms.uTime.value = time;
-      mesh.material.uniforms.uAlpha.value = 1.0;
-      mesh.material.uniforms.uHoverStrength.value = hoverStrength;
-  
-      const baseAngle = (index / TOTAL) * Math.PI * 2;
-      const currentAngle = cylinderGroup.rotation.y + baseAngle;
-      const worldZ = Math.sin(currentAngle) * ORBIT_RADIUS;
-  
-      // Rango dinámico: de 1 (fondo) a 20 (adelante)
-      // El GLB está en renderOrder 10
-      const normalized = (worldZ / ORBIT_RADIUS) * 0.5 + 0.5; // 0 a 1
-      mesh.renderOrder = Math.round(normalized * 19) + 1; // 1 a 20
-    });
-  }
+  cylinderGroup.rotation.y = time * 0.28;
+  mouse3DSmooth.lerp(mouse3D, 0.08);
+
+  imagePlanes.forEach((mesh, index) => {
+    mesh.material.uniforms.uTime.value = time;
+    mesh.material.uniforms.uAlpha.value = 1.0;
+    mesh.material.uniforms.uHoverStrength.value = hoverStrength;
+
+    const baseAngle = (index / TOTAL) * Math.PI * 2;
+    const currentAngle = cylinderGroup.rotation.y + baseAngle;
+    const worldZ = Math.sin(currentAngle) * ORBIT_RADIUS;
+
+    const normalized = (worldZ / ORBIT_RADIUS) * 0.5 + 0.5;
+    mesh.renderOrder = Math.round(normalized * 19) + 1;
+  });
+}
 
 // =====================
 // MOUSE
@@ -242,9 +224,6 @@ const raycaster = new THREE.Raycaster();
 const planeMouse = new THREE.Plane(new THREE.Vector3(0, 0, 1), -8);
 let intersecting = false;
 let glbModel = null;
-
-// Plano en el radio del cilindro para capturar mouse 3D
-const cylinderPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -ORBIT_RADIUS);
 
 container.addEventListener('mousemove', (event) => {
   const rect = container.getBoundingClientRect();
@@ -258,15 +237,25 @@ container.addEventListener('mousemove', (event) => {
   raycaster.ray.intersectPlane(planeMouse, point);
   cursorLight.position.copy(point);
 
-  // Mouse 3D en el plano del cilindro
-  const cylinderPoint = new THREE.Vector3();
-  raycaster.ray.intersectPlane(cylinderPlane, cylinderPoint);
-  if (cylinderPoint) {
-    mouse3D.copy(cylinderPoint);
-    mouse3D.y -= 3.0; // offset igual al mesh.position.y
+  // ✅ FIX CURSOR: raycast contra los meshes reales en vez de un plano fijo
+  const hits = raycaster.intersectObjects(imagePlanes, false);
+  if (hits.length > 0) {
+    // Hit directo sobre una card — posición exacta en world space
+    mouse3D.copy(hits[0].point);
+    // Compensar el offset Y del grupo
+    mouse3D.y -= 0; // el hit.point ya está en world space, no necesita offset
+  } else {
+    // Fallback: plano frontal del cilindro cuando no hay hit
+    const frontPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -ORBIT_RADIUS);
+    const cp = new THREE.Vector3();
+    raycaster.ray.intersectPlane(frontPlane, cp);
+    if (cp) {
+      mouse3D.copy(cp);
+      mouse3D.y -= 3.0;
+    }
   }
 
-  // Hover strength — sube al entrar, baja al salir
+  // Hover strength
   gsap.to({ v: hoverStrength }, {
     v: 1.0,
     duration: 0.4,
@@ -294,7 +283,6 @@ container.addEventListener('mousemove', (event) => {
 });
 
 container.addEventListener('mouseleave', () => {
-  // Mouse sale — manda el punto lejos y baja el strength
   mouse3D.set(9999, 9999, 9999);
   gsap.to({ v: hoverStrength }, {
     v: 0.0,
@@ -313,14 +301,10 @@ loader.load(
     glbModel = gltf.scene;
     glbModel.position.set(0, 0, -2);
     glbModel.traverse(child => {
-        if (child.isMesh) {
-          child.renderOrder = 10;
-          if (child.material) {
-            //child.material.depthTest = true;
-            //child.material.depthWrite = true;
-          }
-        }
-      });
+      if (child.isMesh) {
+        child.renderOrder = 10;
+      }
+    });
     scene.add(glbModel);
   }
 );
@@ -350,44 +334,37 @@ function animate() {
 
 animate();
 
-
-
-
-///Loading
-
+// =====================
+// LOADING
+// =====================
 const tl = gsap.timeline({
-    defaults: {
-      ease: "power2.inOut", // más suave, menos agresivo
-    },
-    onComplete: () => {
-      document.querySelector(".loading-wrapper").style.pointerEvents = "none";
-    },
-  });
-  
-  // BG (mantenemos duración larga)
-  tl.to(".bg-color-courting", {
-    x: "100%",
-    duration: 4,
-    stagger: {
-      each: 0.25, // antes 0.7 → demasiado lento y cortado
-    },
-  }, 0);
-  
-  // Heading acompaña (no separado)
-  tl.to(".heading-2", {
-    x: "100%",
-    duration: 3.8,
-    stagger: {
-      each: 0.25,
-    },
-  }, 0.1);
-  
-  // Wrapper sale con overlap leve
-  tl.to(".courting-wrapper", {
-    y: "100%",
-    duration: 1.6,
-    stagger: {
-      amount: 0.5,
-      from: "end",
-    },
-  }, "-=1.2");
+  defaults: { ease: "expo.inOut" },
+  onComplete: () => {
+    document.querySelector(".loading-wrapper").style.pointerEvents = "none";
+  },
+});
+
+// Barras de color salen primero
+tl.to(".bg-color-courting", {
+  x: "100%",
+  duration: 1.8,
+  stagger: { each: 0.12 },
+}, 0);
+
+// Heading sale casi en simultáneo, levemente después
+tl.to(".heading-2", {
+  x: "100%",
+  duration: 1.4,
+  stagger: { each: 0.08 },
+}, 0.05);
+
+// Wrapper sale cuando las barras ya van a la mitad
+tl.to(".courting-wrapper", {
+  y: "100%",
+  duration: 1.2,
+  ease: "power3.inOut",
+  stagger: {
+    amount: 0.2,
+    from: "end",
+  },
+}, "-=0.9");
