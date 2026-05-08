@@ -2,6 +2,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import gsap from 'gsap';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+dracoLoader.preload();
+
 
 const container = document.querySelector("._3d-element");
 
@@ -361,6 +367,8 @@ container.addEventListener('mouseleave', () => {
 // LOAD MODEL
 // =====================
 const loader = new GLTFLoader();
+loader.setDRACOLoader(dracoLoader);
+
 loader.load(
   "https://assets-hosts.netlify.app/models/angelo-v1.glb",
   (gltf) => {
