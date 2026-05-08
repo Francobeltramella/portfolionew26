@@ -98,8 +98,6 @@ const fragmentShader = `
   void main() {
     vec2 uv = vUv;
 
-    float edgeY = smoothstep(0.0, 0.06, uv.y) * smoothstep(1.0, 0.94, uv.y);
-
     vec4 tex = texture2D(uTexture, uv);
 
     float dist = distance(vWorldPos, uMouse3D);
@@ -153,8 +151,12 @@ const ARC_PER_CARD = ((Math.PI * 2) / TOTAL) * GAP;
 const cylinderGroup = new THREE.Group();
 scene.add(cylinderGroup);
 
-const mouse3D = new THREE.Vector3(9999, 9999, 9999);
-const mouse3DSmooth = new THREE.Vector3(9999, 9999, 9999);
+// mouse3D en world space
+const mouse3DWorld = new THREE.Vector3(9999, 9999, 9999);
+// mouse3D en local space del cylinderGroup — lo que reciben los shaders
+const mouse3DLocal = new THREE.Vector3(9999, 9999, 9999);
+const mouse3DLocalSmooth = new THREE.Vector3(9999, 9999, 9999);
+
 let hoverStrength = 0;
 
 imageElements.forEach((img, index) => {
@@ -179,7 +181,8 @@ imageElements.forEach((img, index) => {
       uArcAngle: { value: ARC_PER_CARD },
       uRadius: { value: ORBIT_RADIUS },
       uAngleOffset: { value: angleOffset },
-      uMouse3D: { value: mouse3DSmooth },
+      // ✅ Ahora apunta a mouse3DLocalSmooth
+      uMouse3D: { value: mouse3DLocalSmooth },
       uHoverStrength: { value: 0.0 },
     },
     vertexShader,
@@ -199,7 +202,14 @@ imageElements.forEach((img, index) => {
 // =====================
 function animateImages(time) {
   cylinderGroup.rotation.y = time * 0.28;
-  mouse3DSmooth.lerp(mouse3D, 0.08);
+
+  // ✅ Convertir mouse world → local DESPUÉS de rotar el grupo
+  // worldToLocal tiene en cuenta la rotación actual del grupo
+  mouse3DLocal.copy(mouse3DWorld);
+  cylinderGroup.worldToLocal(mouse3DLocal);
+
+  // Smooth en local space
+  mouse3DLocalSmooth.lerp(mouse3DLocal, 0.08);
 
   imagePlanes.forEach((mesh, index) => {
     mesh.material.uniforms.uTime.value = time;
@@ -216,18 +226,13 @@ function animateImages(time) {
 }
 
 // =====================
-// MOUSE — FIX CURSOR
+// MOUSE
 // =====================
 const mouse = new THREE.Vector2();
 const raycaster = new THREE.Raycaster();
 const planeMouse = new THREE.Plane(new THREE.Vector3(0, 0, 1), -8);
 let intersecting = false;
 let glbModel = null;
-
-// Vector reusables para no allocar en cada frame
-const _ray = new THREE.Ray();
-const _worldPos = new THREE.Vector3();
-const _ndcPos = new THREE.Vector3();
 
 container.addEventListener('mousemove', (event) => {
   const rect = container.getBoundingClientRect();
@@ -241,38 +246,20 @@ container.addEventListener('mousemove', (event) => {
   raycaster.ray.intersectPlane(planeMouse, point);
   cursorLight.position.copy(point);
 
-  // ✅ FIX REAL DEL CURSOR
-  // El vertex shader construye la posición así:
-  //   pos.x = cos(worldAngle) * RADIUS
-  //   pos.z = sin(worldAngle) * RADIUS  
-  //   pos.y = position.y  (luego el mesh tiene position.y = -3)
-  // 
-  // Entonces el mouse3D tiene que estar en ese mismo espacio.
-  // Hacemos unproject del mouse a la profundidad z=0 (centro del cilindro)
-  // y luego proyectamos XY al radio del cilindro.
+  // ✅ Mouse 3D world space
+  // Unproject al plano z=0 (eje del cilindro) con perspectiva correcta
+  const origin = camera.position.clone();
+  const dir = new THREE.Vector3(mouse.x, mouse.y, 0.5)
+    .unproject(camera)
+    .sub(origin)
+    .normalize();
 
-  _ndcPos.set(mouse.x, mouse.y, 0.5);
-  _ndcPos.unproject(camera);
-  
-  // Dirección del rayo
-  const dir = _ndcPos.sub(camera.position).normalize();
-  
-  // Intersección con el plano z=0 (plano del eje del cilindro)
-  // camera.position.z + t * dir.z = 0  →  t = -camera.position.z / dir.z
-  const t = -camera.position.z / dir.z;
-  
-  _worldPos.set(
-    camera.position.x + dir.x * t,
-    camera.position.y + dir.y * t,
+  // t para z=0: origin.z + t*dir.z = 0
+  const tZ = -origin.z / dir.z;
+  mouse3DWorld.set(
+    origin.x + dir.x * tZ,
+    origin.y + dir.y * tZ + 3.0, // +3 compensa mesh.position.y = -3
     0
-  );
-  
-  // Proyectamos al radio del cilindro — normalizamos XZ y multiplicamos por ORBIT_RADIUS
-  const len = Math.sqrt(_worldPos.x * _worldPos.x + ORBIT_RADIUS * ORBIT_RADIUS);
-  mouse3D.set(
-    _worldPos.x,
-    _worldPos.y + 3.0, // +3 para compensar mesh.position.y = -3
-    ORBIT_RADIUS       // z fija en el frente del cilindro
   );
 
   // Hover strength
@@ -303,7 +290,7 @@ container.addEventListener('mousemove', (event) => {
 });
 
 container.addEventListener('mouseleave', () => {
-  mouse3D.set(9999, 9999, 9999);
+  mouse3DWorld.set(9999, 9999, 9999);
   gsap.to({ v: hoverStrength }, {
     v: 0.0,
     duration: 0.6,
@@ -355,33 +342,36 @@ function animate() {
 animate();
 
 // =====================
-// LOADING
+// LOADING — lento y fluido
 // =====================
 const tl = gsap.timeline({
-  defaults: { ease: "expo.inOut" },
+  defaults: { ease: "power2.out" },
   onComplete: () => {
     document.querySelector(".loading-wrapper").style.pointerEvents = "none";
   },
 });
 
+// Barras — salen lento, bien escalonadas para leer el texto
 tl.to(".bg-color-courting", {
   x: "100%",
-  duration: 2.4,
-  stagger: { each: 0.22 },
+  duration: 3.2,
+  stagger: { each: 0.35 },
 }, 0);
 
+// Heading acompaña las barras con un delay leve
 tl.to(".heading-2", {
   x: "100%",
-  duration: 2.0,
-  stagger: { each: 0.18 },
-}, 0.1);
+  duration: 2.8,
+  stagger: { each: 0.30 },
+}, 0.15);
 
+// Wrapper sale al final cuando todo ya terminó
 tl.to(".courting-wrapper", {
   y: "100%",
-  duration: 1.4,
-  ease: "power3.inOut",
+  duration: 1.6,
+  ease: "power2.inOut",
   stagger: {
-    amount: 0.3,
+    amount: 0.4,
     from: "end",
   },
-}, "-=1.0");
+}, "-=0.8");
