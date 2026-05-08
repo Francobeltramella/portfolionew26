@@ -417,7 +417,7 @@ animate();
 // =====================
 const tl = gsap.timeline({
   defaults: { ease: "power2.out" },
-  delay: 1.4,
+  delay: 0.3,
   onComplete: () => {
     document.querySelector(".loading-wrapper").style.pointerEvents = "none";
   },
