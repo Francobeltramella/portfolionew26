@@ -33,10 +33,7 @@ dirLight.position.set(2, 3, 4);
 scene.add(dirLight);
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.enableZoom = false;
-controls.enablePan = false;  // ✅ esto deshabilita el drag que mueve la cámara
+
 
 const cursorLight = new THREE.PointLight(0xffffff, 8, 500);
 scene.add(cursorLight);
@@ -44,6 +41,8 @@ scene.add(cursorLight);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.enableZoom = false;
+controls.enablePan = false;  // ✅ esto deshabilita el drag que mueve la cámara
+
 
 // =====================
 // SHADERS — NIVEL AWWWARDS
