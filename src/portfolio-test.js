@@ -1,13 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import gsap from 'gsap';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-
-const dracoLoader = new DRACOLoader();
-dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-dracoLoader.preload();
-
+import gsap from 'gsap';
 
 const container = document.querySelector("._3d-element");
 
@@ -33,19 +28,16 @@ dirLight.position.set(2, 3, 4);
 scene.add(dirLight);
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-
-
 const cursorLight = new THREE.PointLight(0xffffff, 8, 500);
 scene.add(cursorLight);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.enableZoom = false;
-controls.enablePan = false;  // ✅ esto deshabilita el drag que mueve la cámara
-
+controls.enablePan = false;
 
 // =====================
-// SHADERS — NIVEL AWWWARDS
+// SHADERS
 // =====================
 const vertexShader = `
   varying vec2 vUv;
@@ -71,37 +63,27 @@ const vertexShader = `
     pos.z = sin(worldAngle) * uRadius;
     pos.y = position.y;
 
-    // Normal radial del cilindro
     vec3 nor = normalize(vec3(cos(worldAngle), 0.0, sin(worldAngle)));
 
-    // Distancia al cursor en espacio local
     float dist = distance(pos, uMouse3D);
-
-    // Influencia con falloff suave — radio más grande para efecto más épico
     float influence = 1.0 - smoothstep(0.0, 5.0, dist);
-    influence = pow(influence, 1.4); // curva más dramática
+    influence = pow(influence, 1.4);
     vInfluence = influence;
 
-    // ── EFECTO 1: Bulge hacia afuera (push radial) ──
     float bulge = influence * uHoverStrength * 1.1;
     pos += nor * bulge;
 
-    // ── EFECTO 2: Hollow/sink en el centro exacto del cursor ──
-    // El centro se hunde levemente, creando forma de "membrana presionada"
     float innerDist = distance(pos.xz, uMouse3D.xz);
     float innerInfluence = 1.0 - smoothstep(0.0, 1.8, innerDist);
     innerInfluence = pow(innerInfluence, 2.0);
     pos -= nor * innerInfluence * uHoverStrength * 0.55;
 
-    // ── EFECTO 3: Wave ripple primaria — se expande desde el cursor ──
     float wave1 = sin(dist * 3.2 - uTime * 5.0) * influence * uHoverStrength * 0.18;
     pos += nor * wave1;
 
-    // ── EFECTO 4: Wave secundaria perpendicular — movimiento en Y ──
     float wave2 = sin(dist * 2.0 - uTime * 3.5 + 1.57) * influence * uHoverStrength * 0.10;
     pos.y += wave2;
 
-    // ── EFECTO 5: Micro turbulencia en los bordes del influence ──
     float edgeTurb = sin(pos.y * 6.0 + uTime * 4.0) * (influence * (1.0 - influence) * 4.0) * uHoverStrength * 0.08;
     pos += nor * edgeTurb;
 
@@ -132,7 +114,6 @@ const fragmentShader = `
     return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
   }
 
-  // Value noise suave
   float noise(vec2 st) {
     vec2 i = floor(st);
     vec2 f = fract(st);
@@ -148,20 +129,15 @@ const fragmentShader = `
     vec2 uv = vUv;
     float inf = vInfluence * uHoverStrength;
 
-    // ── UV LENS: deformación tipo lente de agua ──
     vec2 center = vec2(0.5);
     vec2 toCenter = uv - center;
     float lensDist = length(toCenter);
 
-    // Lente que magnifica en el centro del influence
     vec2 lensUV = uv + toCenter * inf * 0.22 * (1.0 - lensDist * 1.5);
 
-    // ── RIPPLE UV animado ──
     float ripple = sin(lensDist * 12.0 - uTime * 4.5) * inf * 0.028;
     lensUV += normalize(toCenter + 0.001) * ripple;
 
-    // ── ABERRACIÓN CROMÁTICA ──
-    // Cada canal RGB samplea desde un UV levemente diferente
     float aberration = inf * 0.032;
     vec2 aberDir = normalize(toCenter + 0.001);
 
@@ -172,35 +148,25 @@ const fragmentShader = `
 
     vec4 tex = vec4(r, g, b, a);
 
-    // ── BRIGHTENING + HOT SPOT en el centro ──
-    // Un highlight puntual tipo reflejo de luz en agua
     float hotspot = pow(1.0 - smoothstep(0.0, 0.35, lensDist), 3.0) * inf;
     tex.rgb += hotspot * 0.45;
-
-    // Brightening general en el área de influencia
     tex.rgb += inf * 0.12;
 
-    // ── GLOW EN EL BORDE DE LA DEFORMACIÓN ──
-    // Donde la influencia pasa de 0 a 1 — anillo luminoso
     float edgeGlow = smoothstep(0.0, 0.5, inf) * (1.0 - smoothstep(0.5, 1.0, inf));
     edgeGlow = pow(edgeGlow, 0.8);
     tex.rgb += edgeGlow * vec3(0.9, 0.95, 1.0) * 0.25;
 
-    // ── GRAIN cinematic ──
     float grain = random(uv * 520.0 + uTime * 0.4);
     tex.rgb += (grain - 0.5) * uNoiseStrength;
 
-    // ── LIGHTING lateral + rim ──
     float lateralLight = clamp(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0, 1.0);
     float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
     tex.rgb *= 0.6 + lateralLight * 0.5;
     tex.rgb *= 1.0 - rimDark * 0.35;
 
-    // ── COLOR GRADING ──
     tex.rgb = pow(tex.rgb, vec3(0.95));
     tex.rgb = mix(tex.rgb, tex.rgb * vec3(1.05, 1.0, 0.97), 0.4);
 
-    // ── VIGNETTE ──
     float vignette = smoothstep(0.62, 0.08, length(uv - 0.5));
     tex.rgb *= 0.76 + vignette * 0.24;
 
@@ -242,7 +208,7 @@ imageElements.forEach((img, index) => {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 100, 40);
+  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H, 60, 24);
   const angleOffset = (index / TOTAL) * Math.PI * 2;
 
   const material = new THREE.ShaderMaterial({
@@ -318,20 +284,34 @@ container.addEventListener('mousemove', (event) => {
   raycaster.ray.intersectPlane(planeMouse, lightPoint);
   cursorLight.position.copy(lightPoint);
 
-  // ✅ Proyección al frente del cilindro con perspectiva correcta
+  // ✅ Intersección rayo → cilindro matemático
+  // Funciona desde cualquier ángulo de cámara
   const origin = camera.position.clone();
   const dir = new THREE.Vector3(mouse.x, mouse.y, 0.5)
     .unproject(camera)
     .sub(origin)
     .normalize();
 
-  const tFront = (ORBIT_RADIUS - origin.z) / dir.z;
-  mouse3DWorld.set(
-    origin.x + dir.x * tFront,
-    origin.y + dir.y * tFront + 3.0,
-    ORBIT_RADIUS
-  );
+  const a = dir.x * dir.x + dir.z * dir.z;
+  const b = 2.0 * (origin.x * dir.x + origin.z * dir.z);
+  const c = origin.x * origin.x + origin.z * origin.z - ORBIT_RADIUS * ORBIT_RADIUS;
+  const discriminant = b * b - 4.0 * a * c;
 
+  if (discriminant >= 0) {
+    const t1 = (-b - Math.sqrt(discriminant)) / (2.0 * a);
+    const t2 = (-b + Math.sqrt(discriminant)) / (2.0 * a);
+    const t = (t1 > 0) ? t1 : t2;
+
+    if (t > 0) {
+      mouse3DWorld.set(
+        origin.x + dir.x * t,
+        origin.y + dir.y * t + 3.0,
+        origin.z + dir.z * t
+      );
+    }
+  }
+
+  // Hover strength
   gsap.to({ v: hoverStrength }, {
     v: 1.0,
     duration: 0.35,
@@ -370,6 +350,10 @@ container.addEventListener('mouseleave', () => {
 // =====================
 // LOAD MODEL
 // =====================
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+dracoLoader.preload();
+
 const loader = new GLTFLoader();
 loader.setDRACOLoader(dracoLoader);
 
@@ -384,6 +368,9 @@ loader.load(
       }
     });
     scene.add(glbModel);
+
+    // Loading arranca solo cuando el GLB está listo
+    tl.play();
   }
 );
 
@@ -413,11 +400,11 @@ function animate() {
 animate();
 
 // =====================
-// LOADING
+// LOADING — arranca pausado, espera el GLB
 // =====================
 const tl = gsap.timeline({
+  paused: true,
   defaults: { ease: "power2.out" },
-  delay: 0.3,
   onComplete: () => {
     document.querySelector(".loading-wrapper").style.pointerEvents = "none";
   },
