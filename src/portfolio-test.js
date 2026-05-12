@@ -161,14 +161,31 @@ const fragmentShader = `
 
     float lateralLight = clamp(dot(vNormal, normalize(vec3(1.0, 0.5, 1.0))), 0.0, 1.0);
     float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
-    tex.rgb *= 0.6 + lateralLight * 0.5;
-    tex.rgb *= 1.0 - rimDark * 0.35;
+    // Luz lateral menos oscura
+    tex.rgb *= 0.85 + lateralLight * 0.35;
     
-    tex.rgb = pow(tex.rgb, vec3(0.95));
-    tex.rgb = mix(tex.rgb, tex.rgb * vec3(1.05, 1.0, 0.97), 0.4);
+    // Menos sombra en los bordes/curva
+    tex.rgb *= 1.0 - rimDark * 0.16;
     
-    float vignette = smoothstep(0.62, 0.08, length(uv - 0.5));
-    tex.rgb *= 0.76 + vignette * 0.24;
+    // Más brillo
+    tex.rgb *= 1.22;
+    
+    // Más contraste
+    tex.rgb = (tex.rgb - 0.5) * 1.12 + 0.5;
+    
+    // Más saturación
+    float gray = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+    tex.rgb = mix(vec3(gray), tex.rgb, 1.08);
+    
+    // Gamma/look más luminoso
+    tex.rgb = pow(tex.rgb, vec3(0.88));
+    
+    // Vignette mucho más suave
+    float vignette = smoothstep(0.72, 0.08, length(uv - 0.5));
+    tex.rgb *= 0.92 + vignette * 0.08;
+    
+    // Evita quemar blancos
+    tex.rgb = clamp(tex.rgb, 0.0, 1.0);
     
     gl_FragColor = vec4(tex.rgb, uAlpha);
   }
