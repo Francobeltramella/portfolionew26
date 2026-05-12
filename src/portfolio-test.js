@@ -169,7 +169,7 @@ const fragmentShader = `
     
     // Más brillo
     tex.rgb *= 1.12;
-        
+
     // Más contraste
     tex.rgb = (tex.rgb - 0.5) * 1.12 + 0.5;
     
@@ -404,7 +404,7 @@ window.addEventListener("resize", () => {
 // =====================
 // LOOP
 // =====================
-const clock = new THREE.Clock();
+const clock = { getElapsedTime: () => performance.now() / 1000 };
 
 function animate() {
   requestAnimationFrame(animate);
