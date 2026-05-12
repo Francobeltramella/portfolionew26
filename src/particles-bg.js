@@ -50,7 +50,7 @@ const particleMat = new THREE.PointsMaterial({
   color: 0x8a7a6a,
   size: 0.065,
   transparent: true,
-  opacity: 0.25,
+  opacity: 0.75,
   depthWrite: false,
   sizeAttenuation: true,
 });
