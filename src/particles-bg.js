@@ -48,7 +48,7 @@ particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
 const particleMat = new THREE.PointsMaterial({
   color: 0x8a7a6a,
-  size: 0.095,
+  size: 0.145,
   transparent: true,
   opacity: 0.35,
   depthWrite: false,
