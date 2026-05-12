@@ -435,25 +435,3 @@ tl.to(".courting-wrapper", {
 
 
 
-gsap.set(".fix-button_wrapper", {
-  opacity: 0,
-});
-
-ScrollTrigger.create({
-  trigger: ".hero",
-  start: "bottom top",
-
-  onEnter: () => {
-    gsap.to(".fix-button_wrapper", {
-      opacity: 1,
-      duration: 0.5,
-    });
-  },
-
-  onLeaveBack: () => {
-    gsap.to(".fix-button_wrapper", {
-      opacity: 0,
-      duration: 0.5,
-    });
-  },
-});
