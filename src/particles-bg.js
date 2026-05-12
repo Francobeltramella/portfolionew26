@@ -5,9 +5,12 @@ import * as THREE from 'three';
 // =====================
 const scene = new THREE.Scene();
 
+const splineBg = document.querySelector('.spline-bg');
+splineBg.innerHTML = '';
+
 const camera = new THREE.PerspectiveCamera(
   45,
-  window.innerWidth / window.innerHeight,
+  splineBg.clientWidth / splineBg.clientHeight,
   0.1,
   200
 );
@@ -15,21 +18,14 @@ camera.position.set(0, 0, 28);
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
 renderer.setClearColor(0x000000, 0);
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(splineBg.clientWidth, splineBg.clientHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-renderer.domElement.style.position = 'fixed';
-renderer.domElement.style.top = '0';
-renderer.domElement.style.left = '0';
-renderer.domElement.style.width = '100%';
-renderer.domElement.style.height = '100%';
-renderer.domElement.style.pointerEvents = 'none';
-renderer.domElement.style.zIndex = '0';
-document.body.appendChild(renderer.domElement);
+splineBg.appendChild(renderer.domElement);
 
 // =====================
 // PARTICLES
 // =====================
-const particleCount = 3500;
+const particleCount = 6000;
 const positions     = new Float32Array(particleCount * 3);
 const origins       = new Float32Array(particleCount * 3);
 const velocities    = [];
@@ -37,7 +33,7 @@ const velocities    = [];
 for (let i = 0; i < particleCount; i++) {
   const x = (Math.random() - 0.5) * 80;
   const y = (Math.random() - 0.5) * 50;
-  const z = (Math.random() - 0.5) * 30 - 5;
+  const z = (Math.random() - 0.5) * 20 - 5;
 
   positions[i * 3]     = x;
   positions[i * 3 + 1] = y;
@@ -59,10 +55,10 @@ const particleGeo = new THREE.BufferGeometry();
 particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
 const particleMat = new THREE.PointsMaterial({
-  color: 0xb8a99a,
-  size: 0.11,
+  color: 0xc4b5a5,
+  size: 0.18,
   transparent: true,
-  opacity: 0.75,
+  opacity: 0.9,
   depthWrite: false,
   sizeAttenuation: true,
 });
@@ -94,18 +90,18 @@ window.addEventListener('mouseleave', () => {
 // RESIZE
 // =====================
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = splineBg.clientWidth / splineBg.clientHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(splineBg.clientWidth, splineBg.clientHeight);
 });
 
 // =====================
 // LOOP
 // =====================
-const REPULSION_RADIUS = 5.0;
-const REPULSION_FORCE  = 0.18;
-const RETURN_FORCE     = 0.012;
-const DAMPING          = 0.88;
+const REPULSION_RADIUS = 6.0;
+const REPULSION_FORCE  = 0.22;
+const RETURN_FORCE     = 0.010;
+const DAMPING          = 0.90;
 
 function animate() {
   requestAnimationFrame(animate);
