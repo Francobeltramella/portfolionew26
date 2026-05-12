@@ -163,13 +163,13 @@ const fragmentShader = `
     float rimDark = 1.0 - clamp(dot(vNormal, normalize(vec3(0.0, 0.0, 1.0))), 0.0, 1.0);
     tex.rgb *= 0.6 + lateralLight * 0.5;
     tex.rgb *= 1.0 - rimDark * 0.35;
-
+    
     tex.rgb = pow(tex.rgb, vec3(0.95));
     tex.rgb = mix(tex.rgb, tex.rgb * vec3(1.05, 1.0, 0.97), 0.4);
-
+    
     float vignette = smoothstep(0.62, 0.08, length(uv - 0.5));
     tex.rgb *= 0.76 + vignette * 0.24;
-
+    
     gl_FragColor = vec4(tex.rgb, uAlpha);
   }
 `;
