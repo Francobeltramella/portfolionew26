@@ -12,37 +12,34 @@ const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
 renderer.setClearColor(0x000000, 0);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-
-// Canvas hereda los estilos de .spline-bg
 renderer.domElement.classList.add('spline-bg');
 document.body.appendChild(renderer.domElement);
 
 // =====================
 // PARTICLES
 // =====================
-const particleCount = 6000;
+const particleCount = 8000;
 const positions     = new Float32Array(particleCount * 3);
-const origins       = new Float32Array(particleCount * 3);
 const velocities    = [];
 
 for (let i = 0; i < particleCount; i++) {
-  const x = (Math.random() - 0.5) * 80;
-  const y = (Math.random() - 0.5) * 50;
+  const x = (Math.random() - 0.5) * 100;
+  const y = (Math.random() - 0.5) * 60;
   const z = (Math.random() - 0.5) * 20 - 5;
 
   positions[i * 3]     = x;
   positions[i * 3 + 1] = y;
   positions[i * 3 + 2] = z;
 
-  origins[i * 3]     = x;
-  origins[i * 3 + 1] = y;
-  origins[i * 3 + 2] = z;
+  // Movimiento libre — dirección y velocidad aleatoria suave
+  const angle = Math.random() * Math.PI * 2;
+  const speed = 0.008 + Math.random() * 0.012;
 
   velocities.push({
-    x:  (Math.random() - 0.5) * 0.007,
-    y:  (Math.random() - 0.55) * 0.005,
-    vx: 0,
-    vy: 0,
+    bx: Math.cos(angle) * speed,  // velocidad base x
+    by: Math.sin(angle) * speed,  // velocidad base y
+    vx: 0,                         // velocidad acumulada x
+    vy: 0,                         // velocidad acumulada y
   });
 }
 
@@ -50,10 +47,10 @@ const particleGeo = new THREE.BufferGeometry();
 particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
 const particleMat = new THREE.PointsMaterial({
-  color: 0xc4b5a5,
-  size: 0.18,
+  color: 0xc8b89a,
+  size: 0.055,
   transparent: true,
-  opacity: 0.9,
+  opacity: 0.55,
   depthWrite: false,
   sizeAttenuation: true,
 });
@@ -66,7 +63,7 @@ scene.add(particles);
 // =====================
 const mouse      = new THREE.Vector2(9999, 9999);
 const mousePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 5);
-const mouseWorld = new THREE.Vector3();
+const mouseWorld = new THREE.Vector3(9999, 9999, 9999);
 const raycaster  = new THREE.Raycaster();
 
 window.addEventListener('mousemove', (e) => {
@@ -77,7 +74,6 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseleave', () => {
-  mouse.set(9999, 9999);
   mouseWorld.set(9999, 9999, 9999);
 });
 
@@ -93,10 +89,10 @@ window.addEventListener('resize', () => {
 // =====================
 // LOOP
 // =====================
-const REPULSION_RADIUS = 6.0;
-const REPULSION_FORCE  = 0.22;
-const RETURN_FORCE     = 0.010;
-const DAMPING          = 0.90;
+const REPULSION_RADIUS = 5.5;
+const REPULSION_FORCE  = 0.14;   // suave
+const DAMPING          = 0.94;   // más flotante, más premium
+const BASE_WEIGHT      = 0.96;   // cuánto peso tiene la vel base vs la perturbación
 
 function animate() {
   requestAnimationFrame(animate);
@@ -107,9 +103,11 @@ function animate() {
     const ix = i * 3;
     const iy = i * 3 + 1;
 
-    velocities[i].vx += velocities[i].x * 0.1;
-    velocities[i].vy += velocities[i].y * 0.1;
+    // Movimiento base continuo — siempre se mueven
+    velocities[i].vx = velocities[i].vx * BASE_WEIGHT + velocities[i].bx * (1 - BASE_WEIGHT);
+    velocities[i].vy = velocities[i].vy * BASE_WEIGHT + velocities[i].by * (1 - BASE_WEIGHT);
 
+    // Repulsión suave del mouse
     const dx   = pos[ix] - mouseWorld.x;
     const dy   = pos[iy] - mouseWorld.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -120,19 +118,19 @@ function animate() {
       velocities[i].vy += (dy / dist) * force;
     }
 
-    velocities[i].vx += (origins[ix] - pos[ix]) * RETURN_FORCE;
-    velocities[i].vy += (origins[iy] - pos[iy]) * RETURN_FORCE;
-
+    // Damping
     velocities[i].vx *= DAMPING;
     velocities[i].vy *= DAMPING;
 
+    // Aplicar
     pos[ix] += velocities[i].vx;
     pos[iy] += velocities[i].vy;
 
-    if (pos[ix] > 42)  pos[ix] = -42;
-    if (pos[ix] < -42) pos[ix] =  42;
-    if (pos[iy] > 27)  pos[iy] = -27;
-    if (pos[iy] < -27) pos[iy] =  27;
+    // Wrap infinito — reaparecen del otro lado
+    if (pos[ix] > 50)  pos[ix] = -50;
+    if (pos[ix] < -50) pos[ix] =  50;
+    if (pos[iy] > 30)  pos[iy] = -30;
+    if (pos[iy] < -30) pos[iy] =  30;
   }
 
   particles.geometry.attributes.position.needsUpdate = true;
