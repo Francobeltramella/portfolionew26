@@ -168,8 +168,8 @@ const fragmentShader = `
     tex.rgb *= 1.0 - rimDark * 0.16;
     
     // Más brillo
-    tex.rgb *= 1.22;
-    
+    tex.rgb *= 1.12;
+        
     // Más contraste
     tex.rgb = (tex.rgb - 0.5) * 1.12 + 0.5;
     
